@@ -1930,6 +1930,9 @@ tilingCount(Monitor *m)
 {
 	Client *c;
 	int nclients = 0;
+	if (m->lt[m->sellt]->arrange == layouts[2].arrange)
+		return 1;
+
 	wl_list_for_each(c, &fstack, flink)
 		if (!c->isfloating && VISIBLEON(c, m))
 			++nclients;
