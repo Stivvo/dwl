@@ -1184,6 +1184,8 @@ renderclients(Monitor *m, struct timespec *now)
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
 
+		if (borderpx == 0)
+			goto render;
 		if (!c->isfloating && m->lt[m->sellt]->arrange && tilingCount(m) <= 1) {
 			c->bw = 0;
 			resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
