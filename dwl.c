@@ -241,6 +241,7 @@ static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
 static Monitor *xytomon(double x, double y);
 static void zoom(const Arg *arg);
+static int tilingCount(Monitor *m);
 
 /* variables */
 static const char broken[] = "broken";
@@ -1182,6 +1183,15 @@ renderclients(Monitor *m, struct timespec *now)
 		ox = c->geom.x, oy = c->geom.y;
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
+
+		if (!c->isfloating && m->lt[m->sellt]->arrange && tilingCount(m) <= 1) {
+			c->bw = 0;
+			resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
+			goto render;
+		}
+		c->bw = borderpx;
+		resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
+
 		w = surface->current.width;
 		h = surface->current.height;
 		borders = (struct wlr_box[4]) {
@@ -1199,6 +1209,7 @@ renderclients(Monitor *m, struct timespec *now)
 					m->wlr_output->transform_matrix);
 		}
 
+render:
 		/* This calls our render function for each surface among the
 		 * xdg_surface's toplevel and popups. */
 		rdata.output = m->wlr_output;
@@ -1913,6 +1924,17 @@ xytoindependent(double x, double y)
 	return NULL;
 }
 #endif
+
+int
+tilingCount(Monitor *m)
+{
+	Client *c;
+	int nclients = 0;
+	wl_list_for_each(c, &fstack, flink)
+		if (!c->isfloating && VISIBLEON(c, m))
+			++nclients;
+	return nclients;
+}
 
 int
 main(int argc, char *argv[])
