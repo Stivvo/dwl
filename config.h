@@ -5,6 +5,13 @@ static const float rootcolor[]      = {0.3, 0.3, 0.3, 1.0};
 static const float bordercolor[]    = {0.5, 0.5, 0.5, 1.0};
 static const float focuscolor[]     = {1.0, 0.0, 0.0, 1.0};
 
+/* gaps */
+static const unsigned int gappih    = 10; /* horiz inner gap between windows */
+static const unsigned int gappiv    = 10; /* vert inner gap between windows */
+static const unsigned int gappoh    = 10; /* horiz outer gap between windows and screen edge */
+static const unsigned int gappov    = 10; /* vert outer gap between windows and screen edge */
+static const int smartgaps          = 1;  /* 1 means no outer gap when there is only one window */
+
 /* tagging */
 static const char *tags[] = { "1", "2", "3", "4", "5", "6", "7", "8", "9" };
 
@@ -17,6 +24,12 @@ static const Rule rules[] = {
 	/* x, y, width, heigh are floating only
 	* When x or y == 0 the client is placed at the center of the screen,
 	* when width or height == 0 the default size of the client is used*/
+
+	{ "gnome-calculator", NULL, 0, 1, -1, 			0, 0, 200, 400 },
+	{ "fzfLauncher.sh", NULL, 0, 1, -1, 			0, 0, 0, 0 },
+	{ "wayPreviewServer", NULL, 0, 1, -1, 			500, 50, 0, 0 },
+	{ "Alacritty", NULL, 0, 0, -1, 					0, 0, 0, 0 },
+	{ "firefoxdeveloperedition", NULL, 0, 0, -1, 	0, 0, 0, 0 },
 };
 
 /* layout(s) */
@@ -71,6 +84,8 @@ static const char *vUpcmd[] = { "volume.up.sh", NULL };
 static const char *vDowncmd[] = { "volume.down.sh", NULL };
 static const char *vMutecmd[] = { "volume.audiomute.sh", NULL };
 
+#include "shiftview.c"
+
 static const Key keys[] = {
 	/* Note that Shift changes certain key codes: c -> C, 2 -> at, etc. */
 	/* modifier                  key                 function        argument */
@@ -91,12 +106,15 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_l,          setmfact,       {.f = +0.05} },
 	{ MODKEY,                    XKB_KEY_BackSpace,  zoom,           {0} },
 	{ MODKEY,                    XKB_KEY_Tab,        view,           {0} },
+	{ WLR_MODIFIER_ALT,          XKB_KEY_j,          shiftview,      { .i = -1 } },
+	{ WLR_MODIFIER_ALT,          XKB_KEY_k,  		 shiftview,      { .i = 1 } },
 	{ MODKEY,					 XKB_KEY_q,          killclient,     {0} },
 	{ MODKEY,                    XKB_KEY_t,          setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                    XKB_KEY_f,          setlayout,      {.v = &layouts[1]} },
 	{ MODKEY,                    XKB_KEY_m,          setlayout,      {.v = &layouts[2]} },
 	{ MODKEY,                    XKB_KEY_space,      setlayout,      {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
+	{ MODKEY, 					 XKB_KEY_e,    		togglefullscreen, {0} },
 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },
 	{ MODKEY,                    XKB_KEY_s,          tag,            {.ui = ~0} },
 	{ MODKEY,                    XKB_KEY_comma,      focusmon,       {.i = -1} },
