@@ -97,6 +97,7 @@ typedef struct {
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
+	struct wl_listener fullscreen;
 	struct wlr_box geom;  /* layout-relative, includes border */
 	Monitor *mon;
 #ifdef XWAYLAND
@@ -106,6 +107,11 @@ typedef struct {
 	unsigned int tags;
 	int isfloating;
 	uint32_t resize; /* configure serial of a pending resize */
+	int prevx;
+	int prevy;
+	int prevwidth;
+	int prevheight;
+	int isfullscreen;
 } Client;
 
 typedef struct {
@@ -220,6 +226,7 @@ static Monitor *dirtomon(int dir);
 static void focusclient(Client *old, Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
+static void fullscreenotify(struct wl_listener *listener, void *data);
 static Client *focustop(Monitor *m);
 static void getxdecomode(struct wl_listener *listener, void *data);
 static void incnmaster(const Arg *arg);
@@ -235,6 +242,7 @@ static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
+static void quitfullscreen(Client *c);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
@@ -250,6 +258,7 @@ static void setcursor(struct wl_listener *listener, void *data);
 static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
+static void setfullscreen(Client *c, int fullscreen);
 static void setlayout(const Arg *arg);
 static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
@@ -261,6 +270,7 @@ static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
+static void togglefullscreen(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unmaplayersurface(LayerSurface *layersurface);
@@ -823,6 +833,24 @@ createmon(struct wl_listener *listener, void *data)
 }
 
 void
+quitfullscreen(Client *c)
+{
+	wl_list_for_each(c, &clients, link) {
+		if (c->isfullscreen && VISIBLEON(c, c->mon)) {
+#ifdef XWAYLAND
+			if (c->type == X11Managed)
+				wlr_xwayland_surface_set_fullscreen(c->surface.xwayland, false);
+			else
+#endif
+				wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, false);
+			c->bw = borderpx;
+			resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
+			c->isfullscreen = 0;
+		}
+	}
+}
+
+void
 createnotify(struct wl_listener *listener, void *data)
 {
 	/* This event is raised when wlr_xdg_shell receives a new xdg surface from a
@@ -837,6 +865,7 @@ createnotify(struct wl_listener *listener, void *data)
 	c = xdg_surface->data = calloc(1, sizeof(*c));
 	c->surface.xdg = xdg_surface;
 	c->bw = borderpx;
+	quitfullscreen(c);
 
 	/* Tell the client not to try anything fancy */
 	wlr_xdg_toplevel_set_tiled(c->surface.xdg, WLR_EDGE_TOP |
@@ -851,6 +880,10 @@ createnotify(struct wl_listener *listener, void *data)
 	wl_signal_add(&xdg_surface->events.unmap, &c->unmap);
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xdg_surface->events.destroy, &c->destroy);
+
+	c->fullscreen.notify = fullscreenotify;
+	wl_signal_add(&xdg_surface->toplevel->events.request_fullscreen, &c->fullscreen);
+	c->isfullscreen = 0;
 }
 
 void
@@ -917,7 +950,6 @@ createxdeco(struct wl_listener *listener, void *data)
 	getxdecomode(&d->request_mode, wlr_deco);
 }
 
-
 void
 cursorframe(struct wl_listener *listener, void *data)
 {
@@ -959,6 +991,7 @@ destroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
+	wl_list_remove(&c->fullscreen.link);
 #ifdef XWAYLAND
 	if (c->type == X11Managed)
 		wl_list_remove(&c->activate.link);
@@ -977,6 +1010,44 @@ destroyxdeco(struct wl_listener *listener, void *data)
 	wl_list_remove(&d->destroy.link);
 	wl_list_remove(&d->request_mode.link);
 	free(d);
+}
+
+void
+togglefullscreen(const Arg *arg)
+{
+	Client *sel = selclient();
+	setfullscreen(sel, !sel->isfullscreen);
+}
+
+void
+setfullscreen(Client *c, int fullscreen)
+{
+	c->isfullscreen = fullscreen;
+
+#ifdef XWAYLAND
+	if (c->type == X11Managed)
+		wlr_xwayland_surface_set_fullscreen(c->surface.xwayland, c->isfullscreen);
+	else
+#endif
+		wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, c->isfullscreen);
+
+	c->bw = ((int)(!c->isfullscreen)) * borderpx;
+	if (c->isfullscreen) {
+		c->prevx = c->geom.x;
+		c->prevy = c->geom.y;
+		c->prevheight = c->geom.height;
+		c->prevwidth = c->geom.width;
+		resize(c, c->mon->w.x, c->mon->w.y, c->mon->w.width, c->mon->w.height, 0);
+	} else {
+		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
+	}
+}
+
+void
+fullscreenotify(struct wl_listener *listener, void *data)
+{
+	Client *c = wl_container_of(listener, c, fullscreen);
+	setfullscreen(c, !c->isfullscreen);
 }
 
 Monitor *
@@ -1527,6 +1598,10 @@ renderclients(Monitor *m, struct timespec *now)
 		ox = c->geom.x, oy = c->geom.y;
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
+
+		if (c->isfullscreen || borderpx == 0)
+			goto render;
+
 		w = surface->current.width;
 		h = surface->current.height;
 		borders = (struct wlr_box[4]) {
@@ -1544,6 +1619,7 @@ renderclients(Monitor *m, struct timespec *now)
 					m->wlr_output->transform_matrix);
 		}
 
+render:
 		/* This calls our render function for each surface among the
 		 * xdg_surface's toplevel and popups. */
 		rdata.output = m->wlr_output;
@@ -2227,6 +2303,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->surface.xwayland = xwayland_surface;
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
+	quitfullscreen(c);
 
 	/* Listen to the various events it can emit */
 	c->map.notify = maprequest;
@@ -2237,6 +2314,10 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	wl_signal_add(&xwayland_surface->events.request_activate, &c->activate);
 	c->destroy.notify = destroynotify;
 	wl_signal_add(&xwayland_surface->events.destroy, &c->destroy);
+
+	c->fullscreen.notify = fullscreenotify;
+	wl_signal_add(&xwayland_surface->events.request_fullscreen, &c->fullscreen);
+	c->isfullscreen = 0;
 }
 
 Atom
