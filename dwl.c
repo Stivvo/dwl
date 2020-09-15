@@ -294,6 +294,7 @@ static void toggleview(const Arg *arg);
 static void unmaplayersurface(LayerSurface *layersurface);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
+static void updatemons();
 static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
 static struct wlr_surface *xytolayersurface(struct wl_list *layer_surfaces,
@@ -508,7 +509,7 @@ void
 arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool exclusive)
 {
 	LayerSurface *layersurface;
-	struct wlr_box full_area = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+	struct wlr_box full_area = m->m;
 
 	wl_list_for_each(layersurface, list, link) {
 		struct wlr_layer_surface_v1 *wlr_layer_surface = layersurface->layer_surface;
@@ -583,7 +584,7 @@ arrangelayer(Monitor *m, struct wl_list *list, struct wlr_box *usable_area, bool
 void
 arrangelayers(Monitor *m)
 {
-	struct wlr_box usable_area = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+	struct wlr_box usable_area = m->m;
 	uint32_t layers_above_shell[] = {
 		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
 		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
@@ -603,7 +604,7 @@ arrangelayers(Monitor *m)
 			&usable_area, true);
 
 	if (memcmp(&usable_area, &m->w, sizeof(struct wlr_box))) {
-		memcpy(&m->w, &usable_area, sizeof(struct wlr_box));
+		m->w = usable_area;
 		arrange(m);
 	}
 
@@ -722,9 +723,28 @@ void
 cleanupmon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *wlr_output = data;
-	Monitor *m = wlr_output->data;
+	Monitor *m = wlr_output->data, *newmon;
+	Client *c;
 
 	wl_list_remove(&m->destroy.link);
+	wl_list_remove(&m->frame.link);
+	wl_list_remove(&m->link);
+	wlr_output_layout_remove(output_layout, m->wlr_output);
+
+	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
+	updatemons();
+
+	wl_list_for_each(newmon, &mons, link) {
+		wl_list_for_each(c, &clients, link) {
+			if (c->isfloating && c->geom.x > m->m.width) {
+				resize(c, c->geom.x - m->w.width, c->geom.y,
+						c->geom.width, c->geom.height, 0);
+			}
+			if (c->mon == m)
+				setmon(c, newmon, c->tags);
+		}
+		break;
+	}
 	free(m);
 }
 
@@ -853,12 +873,20 @@ createmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_add_auto(output_layout, wlr_output);
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
-	/* Get effective monitor geometry to use for window area */
-	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
-	m->w = m->m;
-
-	for (size_t i = 0; i < nlayers; ++i) {
+	for (size_t i = 0; i < nlayers; ++i)
 		wl_list_init(&m->layers[i]);
+
+	/* When adding monitors, the geometries of all monitors must be updated */
+	updatemons();
+	wl_list_for_each(m, &mons, link) {
+		/* the first monitor in the list is the most recently added */
+		Client *c;
+		wl_list_for_each(c, &clients, link) {
+			if (c->isfloating)
+				resize(c, c->geom.x + m->w.width, c->geom.y,
+						c->geom.width, c->geom.height, 0);
+		}
+		return;
 	}
 }
 
@@ -2351,6 +2379,20 @@ unmapnotify(struct wl_listener *listener, void *data)
 	setmon(c, NULL, 0);
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
+}
+
+void
+updatemons()
+{
+	Monitor *m;
+	wl_list_for_each(m, &mons, link) {
+		/* Get the effective monitor geometry to use for surfaces */
+		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
+		/* Calculate the effective monitor geometry to use for clients */
+		arrangelayers(m);
+		/* Don't move clients to the left output when plugging monitors */
+		arrange(m);
+	}
 }
 
 void
