@@ -734,9 +734,11 @@ void
 focusmon(const Arg *arg)
 {
 	Client *sel = selclient();
+	Monitor *prevm = selmon;
 
 	selmon = dirtomon(arg->i);
 	focusclient(sel, focustop(selmon), 1);
+	wlr_cursor_move(cursor, NULL, selmon->m.x - prevm->m.x , 0);
 }
 
 void
