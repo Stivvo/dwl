@@ -282,6 +282,7 @@ static void setmfact(const Arg *arg);
 static void setmon(Client *c, Monitor *m, unsigned int newtags);
 static void setup(void);
 static void sigchld(int unused);
+static void shotFocusMon();
 static bool shouldfocusclients();
 static void spawn(const Arg *arg);
 static void tag(const Arg *arg);
@@ -2225,6 +2226,13 @@ sigchld(int unused)
 		EBARF("can't install SIGCHLD handler");
 	while (0 < waitpid(-1, NULL, WNOHANG))
 		;
+}
+
+void
+shotFocusMon(Arg *arg) {
+	const char *shotFocusedCmd[] = { "shot.sh", "focused", selmon->wlr_output->name, NULL };
+	Arg argo = {.v = shotFocusedCmd};
+	spawn(&argo);
 }
 
 bool
