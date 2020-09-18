@@ -83,6 +83,8 @@ static const char *idecmd[] = { "qtcreator.sh", NULL };
 static const char *vUpcmd[] = { "volume.sh", "up", "5", NULL };
 static const char *vDowncmd[] = { "volume.sh", "down", "5", NULL };
 static const char *vMutecmd[] = { "volume.sh", "audiomute", NULL };
+static const char *brightUcmd[] = { "light.sh", "u", NULL };
+static const char *brightDcmd[] = { "light.sh", "d", NULL };
 static const char *colorPickerCmd[] = { "colorPicker.sh", NULL };
 static const char *shotAreaCmd[] = { "shot.sh", "area", NULL };
 static const char *shotAllCmd[] = { "shot.sh", "all", NULL };
@@ -102,6 +104,8 @@ static const Key keys[] = {
 	{ 0, XKB_KEY_XF86AudioRaiseVolume, 					spawn, 		 		{.v = vUpcmd} },
 	{ 0, XKB_KEY_XF86AudioLowerVolume, 					spawn, 		 		{.v = vDowncmd} },
 	{ 0, XKB_KEY_XF86AudioMute,       					spawn, 		 		{.v = vMutecmd} },
+	{ 0, XKB_KEY_XF86MonBrightnessUp,       			spawn, 		 		{.v = brightUcmd} },
+	{ 0, XKB_KEY_XF86MonBrightnessDown,       			spawn, 		 		{.v = brightDcmd} },
 	{ MODKEY, 						XKB_KEY_Print,     	spawn, 		 		{.v = colorPickerCmd} },
 	{ WLR_MODIFIER_SHIFT, 		 	XKB_KEY_Print,     	spawn, 		 		{.v = shotAreaCmd} },
 	{ 0, 						 	XKB_KEY_Print,     	shotFocusMon, 	 	{0} },
