@@ -52,6 +52,11 @@ static const struct xkb_rule_names xkb_rules = {
 static const int repeat_rate = 25;
 static const int repeat_delay = 600;
 
+/* gb will be set the first time togglekblayout is called, then us.. it is
+ * recommended to set the same layout in position 0 of kblayouts and in
+ * xkb_rules */
+static const char *kblayouts[] = {"us", "gb"};
+
 #define MODKEY WLR_MODIFIER_ALT
 #define TAGKEYS(KEY,SKEY,TAG) \
 	{ MODKEY,                    KEY,            view,            {.ui = 1 << TAG} }, \
@@ -110,6 +115,7 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_period,     focusmon,       {.i = +1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_less,       tagmon,         {.i = -1} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_greater,    tagmon,         {.i = +1} },
+	{ MODKEY,  					 XKB_KEY_w,    	 	 togglekblayout, {0} },
 	TAGKEYS(          XKB_KEY_1, XKB_KEY_exclam,                     0),
 	TAGKEYS(          XKB_KEY_2, XKB_KEY_at,                         1),
 	TAGKEYS(          XKB_KEY_3, XKB_KEY_numbersign,                 2),
