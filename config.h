@@ -30,6 +30,7 @@ static const Rule rules[] = {
 	{ "wayPreviewServer", NULL, 0, 1, -1, 			500, 50, 0, 0 },
 	{ "Alacritty", NULL, 0, 0, -1, 					0, 0, 0, 0 },
 	{ "firefoxdeveloperedition", NULL, 0, 0, -1, 	0, 0, 0, 0 },
+	{ "firefox", 				 NULL, 0, 0, -1, 	0, 0, 0, 0 },
 };
 
 /* layout(s) */
@@ -84,7 +85,7 @@ static const char *kblayouts[] = {"it", "gb"};
 
 /* commands */
 static const char *termcmd[]  = { "alacritty", NULL };
-static const char *browsercmd[] = { "firefox-developer-edition", NULL };
+static const char *browsercmd[] = { "firefox", NULL };
 static const char *menucmd[] = { "fzfLauncherWrap.sh", NULL };
 static const char *guifmcmd[] = { "thunar", NULL };
 static const char *calcmd[] = { "gnome-calculator", NULL };
