@@ -1110,16 +1110,16 @@ void
 setfullscreen(Client *c, int fullscreen)
 {
 	c->isfullscreen = fullscreen;
+	c->bw = (1 - fullscreen) * borderpx;
 
 #ifdef XWAYLAND
 	if (c->type == X11Managed)
-		wlr_xwayland_surface_set_fullscreen(c->surface.xwayland, c->isfullscreen);
+		wlr_xwayland_surface_set_fullscreen(c->surface.xwayland, fullscreen);
 	else
 #endif
-		wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, c->isfullscreen);
+		wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, fullscreen);
 
-	c->bw = ((int)(!c->isfullscreen)) * borderpx;
-	if (c->isfullscreen) {
+	if (fullscreen) {
 		c->prevx = c->geom.x;
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
@@ -1430,6 +1430,10 @@ monocle(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
+		if (c->isfullscreen) {
+			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+			return;
+		}
 		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
 }
@@ -2334,6 +2338,10 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
+		if (c->isfullscreen) {
+			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+			return;
+		}
 		if (i < m->nmaster) {
 			r = MIN(n, m->nmaster) - i;
 			h = (m->w.height - my - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
