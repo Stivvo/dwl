@@ -270,6 +270,9 @@ static struct wlr_box sgeom;
 static struct wl_list mons;
 static Monitor *selmon;
 
+static int nclients;
+static int nobw = 0; // 1: draw borders
+
 /* global event handlers */
 static struct wl_listener cursor_axis = {.notify = axisnotify};
 static struct wl_listener cursor_button = {.notify = buttonpress};
@@ -368,6 +371,11 @@ arrange(Monitor *m)
 	/* Get effective monitor geometry to use for window area */
 	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
 	m->w = m->m;
+
+	nobw = (!m->lt[m->sellt]->arrange || // float layout
+			(m->lt[m->sellt]->arrange == layouts[2].arrange) // monocle
+			|| borderpx == 0); // no borders anyway
+
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	/* XXX recheck pointer focus here... or in resize()? */
@@ -1170,19 +1178,8 @@ renderclients(Monitor *m, struct timespec *now)
 	struct render_data rdata;
 	struct wlr_box *borders;
 	struct wlr_surface *surface;
-	int nclients = 0;
-	int nobw = 0; // yes border window
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
-
-	if (!m->lt[m->sellt]->arrange || // float layout
-			(m->lt[m->sellt]->arrange == layouts[2].arrange) // monocle
-			|| borderpx == 0) // no borders anyway
-		nobw = 1;
-	else
-		wl_list_for_each(c, &fstack, flink)
-			if (VISIBLEON(c, m) && !c->isfloating)
-				++nclients;
 
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
@@ -1195,7 +1192,7 @@ renderclients(Monitor *m, struct timespec *now)
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
 
-		if (nobw || nclients <= 1) {
+		if (nclients <= 1 || nobw) {
 			c->bw = 0;
 			resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
 			goto render;
@@ -1657,16 +1654,17 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int i, n = 0, h, mw, my, ty;
+	unsigned int i, h, mw, my, ty;
 	Client *c;
+	nclients = 0;
 
 	wl_list_for_each(c, &clients, link)
 		if (VISIBLEON(c, m) && !c->isfloating)
-			n++;
-	if (n == 0)
+			nclients++;
+	if (nclients == 0)
 		return;
 
-	if (n > m->nmaster)
+	if (nclients > m->nmaster)
 		mw = m->nmaster ? m->w.width * m->mfact : 0;
 	else
 		mw = m->w.width;
@@ -1675,11 +1673,11 @@ tile(Monitor *m)
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
 		if (i < m->nmaster) {
-			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
+			h = (m->w.height - my) / (MIN(nclients, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
 			my += c->geom.height;
 		} else {
-			h = (m->w.height - ty) / (n - i);
+			h = (m->w.height - ty) / (nclients - i);
 			resize(c, m->w.x + mw, m->w.y + ty, m->w.width - mw, h, 0);
 			ty += c->geom.height;
 		}
