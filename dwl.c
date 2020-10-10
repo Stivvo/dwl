@@ -241,7 +241,6 @@ static void view(const Arg *arg);
 static Client *xytoclient(double x, double y);
 static Monitor *xytomon(double x, double y);
 static void zoom(const Arg *arg);
-static int tilingCount(Monitor *m);
 
 /* variables */
 static const char broken[] = "broken";
@@ -1171,8 +1170,20 @@ renderclients(Monitor *m, struct timespec *now)
 	struct render_data rdata;
 	struct wlr_box *borders;
 	struct wlr_surface *surface;
+	int nclients = 0;
+	int nobw = 0; // yes border window
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
+
+	if (!m->lt[m->sellt]->arrange || // float layout
+			(m->lt[m->sellt]->arrange == layouts[2].arrange) // monocle
+			|| borderpx == 0) // no borders anyway
+		nobw = 1;
+	else
+		wl_list_for_each(c, &fstack, flink)
+			if (VISIBLEON(c, m) && !c->isfloating)
+				++nclients;
+
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
@@ -1184,9 +1195,7 @@ renderclients(Monitor *m, struct timespec *now)
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
 
-		if (borderpx == 0)
-			goto render;
-		if (!c->isfloating && m->lt[m->sellt]->arrange && tilingCount(m) <= 1) {
+		if (nobw || nclients <= 1) {
 			c->bw = 0;
 			resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
 			goto render;
@@ -1926,20 +1935,6 @@ xytoindependent(double x, double y)
 	return NULL;
 }
 #endif
-
-int
-tilingCount(Monitor *m)
-{
-	Client *c;
-	int nclients = 0;
-	if (m->lt[m->sellt]->arrange == layouts[2].arrange)
-		return 1;
-
-	wl_list_for_each(c, &fstack, flink)
-		if (!c->isfloating && VISIBLEON(c, m))
-			++nclients;
-	return nclients;
-}
 
 int
 main(int argc, char *argv[])
