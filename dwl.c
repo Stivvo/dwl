@@ -372,13 +372,15 @@ arrange(Monitor *m)
 	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
 	m->w = m->m;
 
-	nobw = (!m->lt[m->sellt]->arrange || // float layout
-			(m->lt[m->sellt]->arrange == layouts[2].arrange) // monocle
-			|| borderpx == 0); // no borders anyway
-
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	/* XXX recheck pointer focus here... or in resize()? */
+
+	// nclients has just been updated
+	nobw = ((m->lt[m->sellt]->arrange && nclients <= 1) ||
+			(m->lt[m->sellt]->arrange == layouts[2].arrange) // monocle
+			|| borderpx == 0); // no borders anyway
+	// not directly checking if tiling to allow compatibility with more layouts
 }
 
 void
@@ -1192,7 +1194,7 @@ renderclients(Monitor *m, struct timespec *now)
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
 
-		if (nclients <= 1 || nobw) {
+		if (!c->isfloating && nobw) {
 			c->bw = 0;
 			resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
 			goto render;
