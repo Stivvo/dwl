@@ -305,7 +305,6 @@ static struct wlr_surface *xytolayersurface(struct wl_list *layer_surfaces,
 		double x, double y, double *sx, double *sy);
 static Monitor *xytomon(double x, double y);
 static void zoom(const Arg *arg);
-static int tilingCount(Monitor *m);
 
 /* variables */
 static const char broken[] = "broken";
@@ -338,6 +337,8 @@ static struct wl_list mons;
 static Monitor *selmon;
 
 static int enablegaps = 1;   /* enables gaps, used by togglegaps */
+static int nclients;
+static int ybw; // 1: yes borders
 
 /* global event handlers */
 static struct wl_listener cursor_axis = {.notify = axisnotify};
@@ -508,6 +509,11 @@ arrange(Monitor *m)
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	/* XXX recheck pointer focus here... or in resize()? */
+
+	// nclients has just been updated
+	ybw = !((m->lt[m->sellt]->arrange && nclients <= 1) ||
+			(m->lt[m->sellt]->arrange == layouts[2].arrange)); // monocle
+	// not directly checking if tiling to allow compatibility with more layouts
 }
 
 void
@@ -1681,6 +1687,7 @@ renderclients(Monitor *m, struct timespec *now)
 	struct wlr_surface *surface;
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
+
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
@@ -1692,16 +1699,10 @@ renderclients(Monitor *m, struct timespec *now)
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
 
-		if (c->isfullscreen || borderpx == 0)
-			goto render;
-
-		if (!c->isfloating && m->lt[m->sellt]->arrange && tilingCount(m) <= 1) {
-			c->bw = 0;
-			resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
-			goto render;
-		}
-		c->bw = borderpx;
+		c->bw = ((c->isfloating || ybw) && !c->isfullscreen) * borderpx;
 		resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
+		if (c->bw == 0)
+			goto render;
 
 		w = surface->current.width;
 		h = surface->current.height;
@@ -2316,20 +2317,21 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int i, n = 0, h, r, oe = enablegaps, ie = enablegaps, mw, my, ty;
+	unsigned int i, h, r, oe = enablegaps, ie = enablegaps, mw, my, ty;
 	Client *c;
+	nclients = 0;
 
 	wl_list_for_each(c, &clients, link)
 		if (VISIBLEON(c, m) && !c->isfloating)
-			n++;
-	if (n == 0)
+			nclients++;
+	if (nclients == 0)
 		return;
 
-	if (smartgaps == n) {
+	if (smartgaps == nclients) {
 		oe = 0; // outer gaps disabled
 	}
 
-	if (n > m->nmaster)
+	if (nclients > m->nmaster)
 		mw = m->nmaster ? (m->w.width + m->gappiv*ie) * m->mfact : 0;
 	else
 		mw = m->w.width - 2*m->gappov*oe + m->gappiv*ie;
@@ -2343,12 +2345,12 @@ tile(Monitor *m)
 			return;
 		}
 		if (i < m->nmaster) {
-			r = MIN(n, m->nmaster) - i;
+			r = MIN(nclients, m->nmaster) - i;
 			h = (m->w.height - my - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
 			resize(c, m->w.x + m->gappov*oe, m->w.y + my, mw - m->gappiv*ie, h, 0);
 			my += c->geom.height + m->gappih*ie;
 		} else {
-			r = n - i;
+			r = nclients - i;
 			h = (m->w.height - ty - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
 			resize(c, m->w.x + mw + m->gappov*oe, m->w.y + ty, m->w.width - mw - 2*m->gappov*oe, h, 0);
 			ty += c->geom.height + m->gappih*ie;
@@ -2675,20 +2677,6 @@ xytoindependent(double x, double y)
 	return NULL;
 }
 #endif
-
-int
-tilingCount(Monitor *m)
-{
-	Client *c;
-	int nclients = 0;
-	if (m->lt[m->sellt]->arrange == layouts[2].arrange)
-		return 1;
-
-	wl_list_for_each(c, &fstack, flink)
-		if (!c->isfloating && VISIBLEON(c, m))
-			++nclients;
-	return nclients;
-}
 
 int
 main(int argc, char *argv[])
