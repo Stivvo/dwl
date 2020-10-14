@@ -847,6 +847,7 @@ createmon(struct wl_listener *listener, void *data)
 }
 
 void quitallfullscreen(Monitor *m) {
+	Client *c;
 	wl_list_for_each(c, &clients, link)
 		if (c->isfullscreen && VISIBLEON(c, m))
 			setfullscreen(c, 0);
@@ -866,7 +867,7 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	quitallfullscreen(m);
+	quitallfullscreen(selmon);
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
@@ -2334,7 +2335,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
-	quitallfullscreen(m);
+	quitallfullscreen(selmon);
 
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
