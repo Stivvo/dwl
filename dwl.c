@@ -152,6 +152,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
+	Client *fullscreen;
 };
 
 typedef struct {
@@ -707,8 +708,10 @@ setfullscreen(Client *c, int fullscreen)
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
 		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+		c->mon->fullscreen = c;
 	} else {
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
+		c->mon->fullscreen = NULL;
 	}
 }
 
@@ -1234,7 +1237,8 @@ renderclients(Monitor *m, struct timespec *now)
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
-					output_layout, m->wlr_output, &c->geom))
+					output_layout, m->wlr_output, &c->geom) ||
+				(m->fullscreen && m->fullscreen != c && m->fullscreen == selclient()))
 			continue;
 
 		surface = WLR_SURFACE(c);
