@@ -1699,7 +1699,7 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		if (!selmon->fullscreenclient)
+		if (!m->fullscreenclient)
 			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
 		renderclients(m, &now);
 #ifdef XWAYLAND
