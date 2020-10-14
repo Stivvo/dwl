@@ -167,7 +167,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
-	Client *fullscreen;
+	Client *fullscreenclient;
 };
 
 typedef struct {
@@ -843,9 +843,8 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
+	if (selmon->fullscreenclient)
+		setfullscreen(selmon->fullscreenclient, 0);
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
@@ -1023,10 +1022,10 @@ setfullscreen(Client *c, int fullscreen)
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
 		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-		c->mon->fullscreen = c;
+		c->mon->fullscreenclient = c;
 	} else {
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
-		c->mon->fullscreen = NULL;
+		c->mon->fullscreenclient = NULL;
 	}
 }
 
@@ -1583,7 +1582,8 @@ renderclients(Monitor *m, struct timespec *now)
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
 					output_layout, m->wlr_output, &c->geom) ||
-				(m->fullscreen && m->fullscreen != c && m->fullscreen == selclient()))
+				(m->fullscreenclient && m->fullscreenclient != c &&
+				 	m->fullscreenclient == selclient()))
 			continue;
 
 		surface = WLR_SURFACE(c);
@@ -1674,7 +1674,7 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		if (!m->fullscreen)
+		if (!selmon->fullscreenclient)
 			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
 		renderclients(m, &now);
 #ifdef XWAYLAND
@@ -2308,9 +2308,8 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
+	if (selmon->fullscreenclient)
+		setfullscreen(selmon->fullscreenclient, 0);
 
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
