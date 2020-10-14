@@ -246,6 +246,7 @@ static void moveresize(const Arg *arg);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
+static void quitallfullscreen(Monitor *m);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
 static void renderlayer(struct wl_list *layer_surfaces, struct timespec *now);
@@ -845,6 +846,16 @@ createmon(struct wl_listener *listener, void *data)
 	updatemons();
 }
 
+void quitallfullscreen(Monitor *m) {
+	wl_list_for_each(c, &clients, link)
+		if (c->isfullscreen && VISIBLEON(c, m))
+			setfullscreen(c, 0);
+	/* Alternaitve: faster but only disables fullscreen on the focused window.
+	 * All other currently visible fullscreen windows will be left untouched */
+	/* if (selmon->fullscreenclient) */
+	/* 	setfullscreen(selmon->fullscreenclient, 0); */
+}
+
 void
 createnotify(struct wl_listener *listener, void *data)
 {
@@ -855,8 +866,7 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	if (selmon->fullscreenclient)
-		setfullscreen(selmon->fullscreenclient, 0);
+	quitallfullscreen(m);
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
@@ -2324,8 +2334,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
-	if (selmon->fullscreenclient)
-		setfullscreen(selmon->fullscreenclient, 0);
+	quitallfullscreen(m);
 
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
