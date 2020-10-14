@@ -173,6 +173,7 @@ struct Monitor {
 	int nmaster;
 	int position;
 	Client *fullscreen;
+	Client *fullscreenclient;
 };
 
 typedef struct {
@@ -255,6 +256,7 @@ static void moveresize(const Arg *arg);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
+static void quitallfullscreen(Monitor *m);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
 static void renderlayer(struct wl_list *layer_surfaces, struct timespec *now);
@@ -506,8 +508,20 @@ applyrules(Client *c)
 void
 arrange(Monitor *m)
 {
+	m->fullscreenclient = NULL;
+
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
+	else {
+		Client *c;
+		wl_list_for_each(c, &clients, link) {
+			if (c->isfullscreen && VISIBLEON(c, m)) {
+				m->fullscreenclient = c;
+				resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+				return;
+			}
+		}
+	}
 	/* XXX recheck pointer focus here... or in resize()? */
 
 	// nclients has just been updated
@@ -925,6 +939,16 @@ createmon(struct wl_listener *listener, void *data)
 	}
 }
 
+void quitallfullscreen(Monitor *m) {
+	wl_list_for_each(c, &clients, link)
+		if (c->isfullscreen && VISIBLEON(c, m))
+			setfullscreen(c, 0);
+	/* Alternaitve: faster but only disables fullscreen on the focused window.
+	 * All other currently visible fullscreen windows will be left untouched */
+	/* if (selmon->fullscreenclient) */
+	/* 	setfullscreen(selmon->fullscreenclient, 0); */
+}
+
 void
 createnotify(struct wl_listener *listener, void *data)
 {
@@ -935,9 +959,7 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
+	quitallfullscreen(m);
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
@@ -1115,10 +1137,10 @@ setfullscreen(Client *c, int fullscreen)
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
 		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-		c->mon->fullscreen = c;
+		c->mon->fullscreenclient = c;
 	} else {
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
-		c->mon->fullscreen = NULL;
+		c->mon->fullscreenclient = NULL;
 	}
 }
 
@@ -1420,13 +1442,15 @@ monocle(Monitor *m)
 	Client *c;
 
 	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, m) || c->isfloating)
+		if (!VISIBLEON(c, m))
 			continue;
 		if (c->isfullscreen) {
+			m->fullscreenclient = c;
 			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 			return;
 		}
-		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+		if (!c->isfloating)
+			resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
 }
 
@@ -1678,7 +1702,7 @@ renderclients(Monitor *m, struct timespec *now)
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
 					output_layout, m->wlr_output, &c->geom) ||
-				(m->fullscreen && m->fullscreen != c && m->fullscreen == selclient()))
+				(m->fullscreenclient != c && m->fullscreenclient == selclient()))
 			continue;
 
 		surface = WLR_SURFACE(c);
@@ -1771,7 +1795,8 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
+		if (!selmon->fullscreenclient)
+			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
 		renderclients(m, &now);
 #ifdef XWAYLAND
 		renderindependents(m->wlr_output, &now);
@@ -2325,12 +2350,15 @@ tile(Monitor *m)
 	i = 0;
 	my = ty = m->gappoh*oe;
 	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, m) || c->isfloating)
+		if (!VISIBLEON(c, m))
 			continue;
 		if (c->isfullscreen) {
+			m->fullscreenclient = c;
 			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 			return;
 		}
+		if (c->isfloating)
+			continue;
 		if (i < m->nmaster) {
 			r = MIN(nclients, m->nmaster) - i;
 			h = (m->w.height - my - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
@@ -2544,9 +2572,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
+	quitallfullscreen(m);
 
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
