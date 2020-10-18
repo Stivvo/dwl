@@ -919,7 +919,6 @@ createmon(struct wl_listener *listener, void *data)
 		wlr_output_layout_move(output_layout, moni->wlr_output, moni->w.x + m->wlr_output->width, 0);
 		fprintf(stderr, "moved %s to %d", moni->wlr_output->name, moni->w.x + m->wlr_output->width);
 	}
-	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
 	for (size_t i = 0; i < nlayers; ++i)
 		wl_list_init(&m->layers[i]);
