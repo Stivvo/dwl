@@ -9,6 +9,9 @@ PKGS = wlroots wayland-server xcb xkbcommon
 CFLAGS += $(foreach p,$(PKGS),$(shell pkg-config --cflags $(p)))
 LDLIBS += $(foreach p,$(PKGS),$(shell pkg-config --libs $(p)))
 
+PREFIX?= /usr/local
+BINDIR?= $(PREFIX)/bin
+DESKTOP?= /usr/share/wayland-sessions
 
 # wayland-scanner is a tool which generates C headers and rigging for Wayland
 # protocols, which are specified in XML. wlroots requires you to rig these up
@@ -39,6 +42,14 @@ config.h: | config.def.h
 dwl.o: config.h xdg-shell-protocol.h wlr-layer-shell-unstable-v1-protocol.h
 
 dwl: xdg-shell-protocol.o wlr-layer-shell-unstable-v1-protocol.o
+
+install:
+	install -Dm 755 dwl $(BINDIR)/dwl
+	install -Dm 644 dwl.desktop $(DESKTOP)/dwl.desktop
+
+uninstall:
+	rm -f $(BINDIR)/dwl
+	rm -f $(DESKTOP)/dwl.desktop
 
 clean:
 	rm -f dwl *.o *-protocol.h *-protocol.c
