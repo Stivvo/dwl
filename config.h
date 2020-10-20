@@ -6,10 +6,10 @@ static const float bordercolor[]    = {0.1960784, 0.1882352, 0.1882352, 1.0};
 static const float focuscolor[]     = {0.9137254, 0.3294117, 0.1254901, 1.0};
 
 /* gaps */
-static const unsigned int gappih    = 10; /* horiz inner gap between windows */
-static const unsigned int gappiv    = 10; /* vert inner gap between windows */
-static const unsigned int gappoh    = 10; /* horiz outer gap between windows and screen edge */
-static const unsigned int gappov    = 10; /* vert outer gap between windows and screen edge */
+static const unsigned int gappih    = 15; /* horiz inner gap between windows */
+static const unsigned int gappiv    = 15; /* vert inner gap between windows */
+static const unsigned int gappoh    = 15; /* horiz outer gap between windows and screen edge */
+static const unsigned int gappov    = 15; /* vert outer gap between windows and screen edge */
 static const int smartgaps          = 1;  /* 1 means no outer gap when there is only one window */
 
 /* tagging */
@@ -68,7 +68,7 @@ static const struct xkb_rule_names xkb_rules = {
 
 /* Trackpad */
 int tap_to_click = 1;
-int natural_scrolling = 1;
+int natural_scrolling = 0;
 
 static const int repeat_rate = 25;
 static const int repeat_delay = 600;
