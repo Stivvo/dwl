@@ -1776,7 +1776,9 @@ renderclients(Monitor *m, struct timespec *now)
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
 					output_layout, m->wlr_output, &c->geom) ||
-				(m->fullscreenclient == sel && m->fullscreenclient != c))
+				(sel && m->fullscreenclient == sel && m->fullscreenclient != c))
+				/* Alternative: render at least all fullscreen windows*/
+				/* (sel && m->fullscreenclient == sel && !c->isfullscreen)) */
 			continue;
 
 		surface = WLR_SURFACE(c);
