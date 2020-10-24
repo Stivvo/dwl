@@ -1137,7 +1137,6 @@ void
 setfullscreen(Client *c, int fullscreen)
 {
 	c->isfullscreen = fullscreen;
-	c->bw = (1 - fullscreen) * borderpx;
 
 #ifdef XWAYLAND
 	if (c->type == X11Managed)
@@ -1148,6 +1147,7 @@ setfullscreen(Client *c, int fullscreen)
 
 	// restore previous size instead of arrange to work with floating windows
 	if (fullscreen) {
+		c->bw = 0;
 		c->prevx = c->geom.x;
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
@@ -1157,6 +1157,7 @@ setfullscreen(Client *c, int fullscreen)
 	} else {
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
 		c->mon->fullscreenclient = NULL;
+		arrange(c->mon);
 	}
 }
 
@@ -1466,7 +1467,9 @@ monocle(Monitor *m)
 			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 			return;
 		}
-		if (!c->isfloating)
+		if (c->isfloating)
+			c->bw = borderpx;
+		else
 			c->bw = 0;
 		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
@@ -2431,11 +2434,14 @@ tile(Monitor *m)
 			continue;
 		if (c->isfullscreen) {
 			m->fullscreenclient = c;
+			c->bw = 0;
 			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 			return;
 		}
-		if (c->isfloating)
+		if (c->isfloating) {
+			c->bw = borderpx;
 			continue;
+		}
 		if (i < m->nmaster) {
 			c->bw = (n > 1) * borderpx;
 			r = MIN(n, m->nmaster) - i;
