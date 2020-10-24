@@ -146,8 +146,6 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
-	int ybw; // 1: yes borders
-	int nclients; // number of clients
 };
 
 typedef struct {
@@ -370,15 +368,18 @@ arrange(Monitor *m)
 	/* Get effective monitor geometry to use for window area */
 	m->m = *wlr_output_layout_get_box(output_layout, m->wlr_output);
 	m->w = m->m;
-
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
+	else {
+		Client *c;
+		wl_list_for_each_reverse(c, &stack, slink)  {
+			if (VISIBLEON(c, m) && !c->isfloating) {
+				c->bw = borderpx;
+				resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
+			}
+		}
+	}
 	/* XXX recheck pointer focus here... or in resize()? */
-
-	// nclients has just been updated
-	m->ybw = !((m->lt[m->sellt]->arrange && m->nclients <= 1) ||
-			(m->lt[m->sellt]->arrange == layouts[2].arrange)); // monocle
-	// not directly checking if tiling to allow compatibility with more layouts
 }
 
 void
@@ -541,7 +542,6 @@ createmon(struct wl_listener *listener, void *data)
 	m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 	m->tagset[0] = m->tagset[1] = 1;
-	m->ybw = m->nclients = 0;
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
 			m->mfact = r->mfact;
@@ -955,6 +955,7 @@ monocle(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
+		c->bw = 0;
 		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
 }
@@ -1181,7 +1182,6 @@ renderclients(Monitor *m, struct timespec *now)
 	struct wlr_surface *surface;
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
-
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
@@ -1192,9 +1192,6 @@ renderclients(Monitor *m, struct timespec *now)
 		ox = c->geom.x, oy = c->geom.y;
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
-
-		c->bw = (c->isfloating || c->mon->ybw) * borderpx;
-		resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
 		if (c->bw == 0)
 			goto render;
 
@@ -1401,6 +1398,7 @@ setfloating(Client *c, int floating)
 	if (c->isfloating == floating)
 		return;
 	c->isfloating = floating;
+	c->bw = floating * borderpx;
 	arrange(c->mon);
 }
 
@@ -1652,17 +1650,16 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int i, h, mw, my, ty;
+	unsigned int i, n = 0, h, mw, my, ty;
 	Client *c;
-	m->nclients = 0;
 
 	wl_list_for_each(c, &clients, link)
 		if (VISIBLEON(c, m) && !c->isfloating)
-			m->nclients++;
-	if (m->nclients == 0)
+			n++;
+	if (n == 0)
 		return;
 
-	if (m->nclients > m->nmaster)
+	if (n > m->nmaster)
 		mw = m->nmaster ? m->w.width * m->mfact : 0;
 	else
 		mw = m->w.width;
@@ -1671,11 +1668,13 @@ tile(Monitor *m)
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
 		if (i < m->nmaster) {
-			h = (m->w.height - my) / (MIN(m->nclients, m->nmaster) - i);
+			c->bw = (n > 1) * borderpx;
+			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
 			my += c->geom.height;
 		} else {
-			h = (m->w.height - ty) / (m->nclients - i);
+			c->bw = borderpx; // of course there's more than 1 client
+			h = (m->w.height - ty) / (n - i);
 			resize(c, m->w.x + mw, m->w.y + ty, m->w.width - mw, h, 0);
 			ty += c->geom.height;
 		}
