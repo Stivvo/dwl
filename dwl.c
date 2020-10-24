@@ -177,7 +177,6 @@ struct Monitor {
 	int position;
 	Client *fullscreen;
 	Client *fullscreenclient;
-	int ybw; // 1: yes borders
 };
 
 typedef struct {
@@ -347,7 +346,6 @@ static struct wl_list mons;
 static Monitor *selmon;
 
 static int enablegaps = 1;   /* enables gaps, used by togglegaps */
-static int nclients;
 
 /* global event handlers */
 static struct wl_listener cursor_axis = {.notify = axisnotify};
@@ -523,20 +521,20 @@ arrange(Monitor *m)
 		m->lt[m->sellt]->arrange(m);
 	else {
 		Client *c;
-		wl_list_for_each(c, &clients, link) {
-			if (c->isfullscreen && VISIBLEON(c, m)) {
-				m->fullscreenclient = c;
-				resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-				return;
+		wl_list_for_each_reverse(c, &stack, slink)  {
+			if (VISIBLEON(c, m)) {
+				if (c->isfullscreen) {
+					c->bw = 0;
+					m->fullscreenclient = c;
+					resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+					return;
+				}
+				c->bw = borderpx;
+				resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
 			}
 		}
 	}
 	/* XXX recheck pointer focus here... or in resize()? */
-
-	// nclients has just been updated
-	m->ybw = !((m->lt[m->sellt]->arrange && nclients <= 1) ||
-			(m->lt[m->sellt]->arrange == layouts[2].arrange)); // monocle
-	// not directly checking if tiling to allow compatibility with more layouts
 }
 
 void
@@ -1463,11 +1461,13 @@ monocle(Monitor *m)
 			continue;
 		if (c->isfullscreen) {
 			m->fullscreenclient = c;
+			c->bw = 0;
 			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 			return;
 		}
 		if (!c->isfloating)
-			resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+			c->bw = 0;
+		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
 }
 
@@ -1771,7 +1771,6 @@ renderclients(Monitor *m, struct timespec *now)
 	struct wlr_surface *surface;
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
-
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
@@ -1785,9 +1784,6 @@ renderclients(Monitor *m, struct timespec *now)
 		ox = c->geom.x, oy = c->geom.y;
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
-
-		c->bw = ((c->isfloating || c->mon->ybw) && !c->isfullscreen) * borderpx;
-		resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
 		if (c->bw == 0)
 			goto render;
 
@@ -2015,6 +2011,7 @@ setfloating(Client *c, int floating)
 	if (c->isfloating == floating)
 		return;
 	c->isfloating = floating;
+	c->bw = floating * borderpx;
 	arrange(c->mon);
 }
 
@@ -2409,21 +2406,20 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int i, h, r, oe = enablegaps, ie = enablegaps, mw, my, ty;
+	unsigned int i, n = 0, h, r, oe = enablegaps, ie = enablegaps, mw, my, ty;
 	Client *c;
-	nclients = 0;
 
 	wl_list_for_each(c, &clients, link)
 		if (VISIBLEON(c, m) && !c->isfloating)
-			nclients++;
-	if (nclients == 0)
+			n++;
+	if (n == 0)
 		return;
 
-	if (smartgaps == nclients) {
+	if (smartgaps == n) {
 		oe = 0; // outer gaps disabled
 	}
 
-	if (nclients > m->nmaster)
+	if (n > m->nmaster)
 		mw = m->nmaster ? (m->w.width + m->gappiv*ie) * m->mfact : 0;
 	else
 		mw = m->w.width - 2*m->gappov*oe + m->gappiv*ie;
@@ -2440,12 +2436,14 @@ tile(Monitor *m)
 		if (c->isfloating)
 			continue;
 		if (i < m->nmaster) {
-			r = MIN(nclients, m->nmaster) - i;
+			c->bw = (n > 1) * borderpx;
+			r = MIN(n, m->nmaster) - i;
 			h = (m->w.height - my - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
 			resize(c, m->w.x + m->gappov*oe, m->w.y + my, mw - m->gappiv*ie, h, 0);
 			my += c->geom.height + m->gappih*ie;
 		} else {
-			r = nclients - i;
+			c->bw = borderpx; // of course there's more than 1 client
+			r = n - i;
 			h = (m->w.height - ty - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
 			resize(c, m->w.x + mw + m->gappov*oe, m->w.y + ty, m->w.width - mw - 2*m->gappov*oe, h, 0);
 			ty += c->geom.height + m->gappih*ie;
