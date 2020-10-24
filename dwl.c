@@ -373,7 +373,7 @@ arrange(Monitor *m)
 	else {
 		Client *c;
 		wl_list_for_each_reverse(c, &stack, slink)  {
-			if (VISIBLEON(c, m) && !c->isfloating) {
+			if (VISIBLEON(c, m)) {
 				c->bw = borderpx;
 				resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
 			}
