@@ -147,6 +147,7 @@ struct Monitor {
 	double mfact;
 	int nmaster;
 	int ybw; // 1: yes borders
+	int nclients; // number of clients
 };
 
 typedef struct {
@@ -271,8 +272,6 @@ static struct wlr_box sgeom;
 static struct wl_list mons;
 static Monitor *selmon;
 
-static int nclients;
-
 /* global event handlers */
 static struct wl_listener cursor_axis = {.notify = axisnotify};
 static struct wl_listener cursor_button = {.notify = buttonpress};
@@ -377,7 +376,7 @@ arrange(Monitor *m)
 	/* XXX recheck pointer focus here... or in resize()? */
 
 	// nclients has just been updated
-	m->ybw = !((m->lt[m->sellt]->arrange && nclients <= 1) ||
+	m->ybw = !((m->lt[m->sellt]->arrange && m->nclients <= 1) ||
 			(m->lt[m->sellt]->arrange == layouts[2].arrange)); // monocle
 	// not directly checking if tiling to allow compatibility with more layouts
 }
@@ -542,6 +541,7 @@ createmon(struct wl_listener *listener, void *data)
 	m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 	m->tagset[0] = m->tagset[1] = 1;
+	m->ybw = m->nclients = 0;
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
 			m->mfact = r->mfact;
@@ -1654,15 +1654,15 @@ tile(Monitor *m)
 {
 	unsigned int i, h, mw, my, ty;
 	Client *c;
-	nclients = 0;
+	m->nclients = 0;
 
 	wl_list_for_each(c, &clients, link)
 		if (VISIBLEON(c, m) && !c->isfloating)
-			nclients++;
-	if (nclients == 0)
+			m->nclients++;
+	if (m->nclients == 0)
 		return;
 
-	if (nclients > m->nmaster)
+	if (m->nclients > m->nmaster)
 		mw = m->nmaster ? m->w.width * m->mfact : 0;
 	else
 		mw = m->w.width;
@@ -1671,11 +1671,11 @@ tile(Monitor *m)
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
 		if (i < m->nmaster) {
-			h = (m->w.height - my) / (MIN(nclients, m->nmaster) - i);
+			h = (m->w.height - my) / (MIN(m->nclients, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
 			my += c->geom.height;
 		} else {
-			h = (m->w.height - ty) / (nclients - i);
+			h = (m->w.height - ty) / (m->nclients - i);
 			resize(c, m->w.x + mw, m->w.y + ty, m->w.width - mw, h, 0);
 			ty += c->geom.height;
 		}
