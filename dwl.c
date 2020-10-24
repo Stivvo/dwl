@@ -1146,6 +1146,7 @@ setfullscreen(Client *c, int fullscreen)
 #endif
 		wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, fullscreen);
 
+	// restore previous size instead of arrange to work with floating windows
 	if (fullscreen) {
 		c->prevx = c->geom.x;
 		c->prevy = c->geom.y;
