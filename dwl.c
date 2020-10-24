@@ -146,6 +146,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
+	int ybw; // 1: yes borders
 };
 
 typedef struct {
@@ -271,7 +272,6 @@ static struct wl_list mons;
 static Monitor *selmon;
 
 static int nclients;
-static int ybw; // 1: yes borders
 
 /* global event handlers */
 static struct wl_listener cursor_axis = {.notify = axisnotify};
@@ -377,7 +377,7 @@ arrange(Monitor *m)
 	/* XXX recheck pointer focus here... or in resize()? */
 
 	// nclients has just been updated
-	ybw = !((m->lt[m->sellt]->arrange && nclients <= 1) ||
+	m->ybw = !((m->lt[m->sellt]->arrange && nclients <= 1) ||
 			(m->lt[m->sellt]->arrange == layouts[2].arrange)); // monocle
 	// not directly checking if tiling to allow compatibility with more layouts
 }
@@ -1193,7 +1193,7 @@ renderclients(Monitor *m, struct timespec *now)
 		wlr_output_layout_output_coords(output_layout, m->wlr_output,
 				&ox, &oy);
 
-		c->bw = (c->isfloating || ybw) * borderpx;
+		c->bw = (c->isfloating || c->mon->ybw) * borderpx;
 		resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
 		if (c->bw == 0)
 			goto render;
