@@ -224,6 +224,7 @@ static void chvt(const Arg *arg);
 static void cleanup(void);
 static void cleanupkeyboard(struct wl_listener *listener, void *data);
 static void cleanupmon(struct wl_listener *listener, void *data);
+static void closemon(Monitor *m);
 static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
@@ -755,8 +756,7 @@ void
 cleanupmon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *wlr_output = data;
-	Monitor *m = wlr_output->data, *newmon;
-	Client *c;
+	Monitor *m = wlr_output->data;
 
 	wl_list_remove(&m->destroy.link);
 	wl_list_remove(&m->frame.link);
@@ -764,6 +764,16 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 
 	updatemons();
+	closemon(m);
+	free(m);
+}
+
+void
+closemon(Monitor *m)
+{
+	// move all the clients on a closed monitor to another one
+	Monitor *newmon;
+	Client *c;
 
 	wl_list_for_each(newmon, &mons, link) {
 		wl_list_for_each(c, &clients, link) {
@@ -776,7 +786,6 @@ cleanupmon(struct wl_listener *listener, void *data)
 		}
 		break;
 	}
-	free(m);
 }
 
 void
@@ -1622,8 +1631,24 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 
 	wl_list_for_each(config_head, &config->heads, link) {
 		struct wlr_output *wlr_output = config_head->state.output;
+		Monitor *m;
 
 		wlr_output_enable(wlr_output, config_head->state.enabled);
+		if (!wlr_output->enabled) {
+			wl_list_for_each(m, &mons, link) {
+				if (m->wlr_output == wlr_output) {
+					wlr_output_set_mode(m->wlr_output, wlr_output_preferred_mode(m->wlr_output));
+					break;
+				}
+			}
+		} else {
+			wl_list_for_each(m, &mons, link) {
+				if (m->wlr_output == wlr_output) {
+					closemon(m);
+					break;
+				}
+			}
+		}
 
 		if (config_head->state.enabled) {
 			if (config_head->state.mode)
@@ -1650,8 +1675,7 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 		wlr_output_configuration_v1_send_succeeded(config);
 		if (!test)
 			updatemons();
-	}
-	else
+	} else
 		wlr_output_configuration_v1_send_failed(config);
 	wlr_output_configuration_v1_destroy(config);
 }
@@ -2549,7 +2573,6 @@ updatemons()
 		wlr_output_configuration_v1_create();
 	Monitor *m;
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
-
 	wl_list_for_each(m, &mons, link) {
 		struct wlr_output_configuration_head_v1 *config_head =
 			wlr_output_configuration_head_v1_create(config, m->wlr_output);
