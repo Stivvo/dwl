@@ -224,7 +224,7 @@ static void chvt(const Arg *arg);
 static void cleanup(void);
 static void cleanupkeyboard(struct wl_listener *listener, void *data);
 static void cleanupmon(struct wl_listener *listener, void *data);
-static void closemon(Monitor *m);
+static void closemon(Monitor *m, Monitor *newmon);
 static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
@@ -756,7 +756,7 @@ void
 cleanupmon(struct wl_listener *listener, void *data)
 {
 	struct wlr_output *wlr_output = data;
-	Monitor *m = wlr_output->data;
+	Monitor *m = wlr_output->data, *newmon;
 
 	wl_list_remove(&m->destroy.link);
 	wl_list_remove(&m->frame.link);
@@ -764,27 +764,23 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_remove(output_layout, m->wlr_output);
 
 	updatemons();
-	closemon(m);
+	closemon(m, wl_container_of(mons.next, newmon, link));
 	free(m);
 }
 
 void
-closemon(Monitor *m)
+closemon(Monitor *m, Monitor *newmon)
 {
 	// move all the clients on a closed monitor to another one
-	Monitor *newmon;
 	Client *c;
 
 	focusclient(selclient(), focustop(dirtomon(-1)), 1);
-	wl_list_for_each(newmon, &mons, link) {
-		wl_list_for_each(c, &clients, link) {
-			if (c->isfloating && c->geom.x > m->m.width)
-				resize(c, c->geom.x - m->w.width, c->geom.y,
-					c->geom.width, c->geom.height, 0);
-			if (c->mon == m)
-				setmon(c, newmon, c->tags);
-		}
-		break;
+	wl_list_for_each(c, &clients, link) {
+		if (c->isfloating && c->geom.x > m->m.width)
+			resize(c, c->geom.x - m->w.width, c->geom.y,
+				c->geom.width, c->geom.height, 0);
+		if (c->mon == m)
+			setmon(c, newmon, c->tags);
 	}
 }
 
@@ -1631,24 +1627,13 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 
 	wl_list_for_each(config_head, &config->heads, link) {
 		struct wlr_output *wlr_output = config_head->state.output;
-		Monitor *m;
+		Monitor *m, *newmon;
 
 		wlr_output_enable(wlr_output, config_head->state.enabled);
-		if (!wlr_output->enabled) {
-			wl_list_for_each(m, &mons, link) {
-				if (m->wlr_output == wlr_output) {
-					wlr_output_set_mode(m->wlr_output, wlr_output_preferred_mode(m->wlr_output));
-					break;
-				}
-			}
-		} else {
-			wl_list_for_each(m, &mons, link) {
-				if (m->wlr_output == wlr_output) {
-					closemon(m);
-					break;
-				}
-			}
-		}
+		if (!config_head->state.enabled)
+			wl_list_for_each(m, &mons, link)
+				if (m->wlr_output->name == wlr_output->name)
+					closemon(m, wl_container_of(m->link.next, newmon, link));
 
 		if (config_head->state.enabled) {
 			if (config_head->state.mode)
