@@ -64,7 +64,7 @@ static const struct xkb_rule_names xkb_rules = {
 	.options = "ctrl:nocaps",
 	*/
     .options = "caps:swapescape",
-    .layout = "it"
+    .layout = "gb"
 };
 
 /* Trackpad */
@@ -77,7 +77,7 @@ static const int repeat_delay = 600;
 /* gb will be set the first time togglekblayout is called, then us.. it is
  * recommended to set the same layout in position 0 of kblayouts and in
  * xkb_rules */
-static const char *kblayouts[] = {"it", "gb"};
+static const char *kblayouts[] = {"gb", "it"};
 
 #define MODKEY WLR_MODIFIER_LOGO
 #define TAGKEYS(KEY,SKEY,TAG) \
