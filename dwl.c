@@ -765,7 +765,9 @@ cleanupmon(struct wl_listener *listener, void *data)
 
 	updatemons();
 
-	selmon = wl_container_of(mons.next, selmon, link);
+	do // don't switch to disabled mons
+		selmon = wl_container_of(mons.next, selmon, link);
+	while (!selmon->wlr_output->enabled);
 	focusclient(selclient(), focustop(selmon), 1);
 	closemon(m);
 
@@ -1626,16 +1628,22 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, bool test)
 {
 	struct wlr_output_configuration_head_v1 *config_head;
 	bool ok = true;
+	Arg ar = {.i = -1};
 
 	wl_list_for_each(config_head, &config->heads, link) {
 		struct wlr_output *wlr_output = config_head->state.output;
-		Monitor *m, *newmon;
+		Monitor *m;
 
 		wlr_output_enable(wlr_output, config_head->state.enabled);
-		if (!config_head->state.enabled)
-			wl_list_for_each(m, &mons, link)
-				if (m->wlr_output->name == wlr_output->name)
-					closemon(m, wl_container_of(m->link.next, newmon, link));
+		if (!config_head->state.enabled) {
+			wl_list_for_each(m, &mons, link) {
+				if (m->wlr_output->name == wlr_output->name) {
+					// focus the left monitor (relative to the current focus)
+					focusmon(&ar);
+					closemon(m);
+				}
+			}
+		}
 
 		if (config_head->state.enabled) {
 			if (config_head->state.mode)
