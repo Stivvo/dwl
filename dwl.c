@@ -904,11 +904,8 @@ createmon(struct wl_listener *listener, void *data)
 	if (insertmon) {
 		x = insertmon->w.x + insertmon->w.width;
 		wl_list_insert(&insertmon->link, &m->link);
-		fprintf(stderr, "%s inserted in pos %d\n", m->wlr_output->name, m->position);
-	} else {
+	} else // first monitor
 		wl_list_insert(&mons, &m->link);
-		fprintf(stderr, "%s defaulting\n", m->wlr_output->name);
-	}
 
 	wlr_output_enable(wlr_output, 1);
 	if (!wlr_output_commit(wlr_output))
@@ -925,11 +922,10 @@ createmon(struct wl_listener *listener, void *data)
 	 */
 	wlr_output_layout_add(output_layout, wlr_output, x, 0);
 	wl_list_for_each_reverse(moni, &mons, link) {
-		/* all monitors that on the right of the new one must be moved */
+		/* all monitors to the right of the new one must be moved */
 		if (moni == m)
 			break;
 		wlr_output_layout_move(output_layout, moni->wlr_output, moni->w.x + m->wlr_output->width, 0);
-		fprintf(stderr, "moved %s to %d", moni->wlr_output->name, moni->w.x + m->wlr_output->width);
 	}
 
 	for (size_t i = 0; i < nlayers; ++i)
