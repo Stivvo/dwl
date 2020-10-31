@@ -50,7 +50,7 @@ static const MonitorRule monrules[] = {
 	/* defaults */
 	{ "eDP-1",		0.55, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL },
 	{ "HDMI-A-1",	0.55, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL },
-	{ "DP-1",		0.55, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL },
+	{ "DP-2",		0.55, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL },
 	{ "HDMI-A-2",	0.55, 1,      1,    &layouts[0], WL_OUTPUT_TRANSFORM_NORMAL },
 	/* with the outputOder patch, the order in which every monitor is defined
 	 * defines its actual position. Non configured monitor, are always added to
