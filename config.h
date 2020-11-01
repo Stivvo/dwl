@@ -105,6 +105,8 @@ static const char *brightDcmd[] = { "light.sh", "d", NULL };
 static const char *colorPickerCmd[] = { "colorPicker.sh", NULL };
 static const char *shotAreaCmd[] = { "shot.sh", "area", NULL };
 static const char *shotAllCmd[] = { "shot.sh", "all", NULL };
+static const char *monitorCmd[] = { "monitor.sh", NULL };
+static const char *rotateCmd[] = { "rotate.sh", NULL };
 static const char *suspendCmd[] = { "systemctl", "suspend", NULL };
 
 #include "shiftview.c"
@@ -128,6 +130,8 @@ static const Key keys[] = {
 	{ WLR_MODIFIER_SHIFT, 		 	XKB_KEY_Print,     	spawn, 		 		{.v = shotAreaCmd} },
 	{ 0, 						 	XKB_KEY_Print,     	shotFocusMon, 	 	{0} },
 	{ WLR_MODIFIER_CTRL, 		 	XKB_KEY_Print,     	spawn, 		 		{.v = shotAllCmd} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, 	XKB_KEY_M,     		spawn, 		 		{.v = monitorCmd} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, 	XKB_KEY_R,     		spawn, 		 		{.v = rotateCmd} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, 	XKB_KEY_S,     		spawn, 		 		{.v = suspendCmd} },
 	{ MODKEY,                    	XKB_KEY_j,         	focusstack,     	{.i = +1} },
 	{ MODKEY,                    	XKB_KEY_k,         	focusstack,     	{.i = -1} },
