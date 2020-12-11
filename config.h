@@ -111,7 +111,7 @@ static const char *oneMonitorCmd[] = { "monitor.sh", "1", NULL };
 static const char *tvOnlyCmd[] = { "monitor.sh", "2", NULL };
 static const char *allMonitorsCmd[] = { "monitor.sh", "3", NULL };
 static const char *rotateCmd[] = { "rotate.sh", NULL };
-static const char *suspendCmd[] = { "systemctl", "suspend", NULL };
+static const char *suspendCmd[] = { "suspendMon.sh", NULL };
 
 #include "shiftview.c"
 
