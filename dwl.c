@@ -217,7 +217,7 @@ static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(int dir);
-static void focusclient(Client *old, Client *c, int lift);
+static void focusclient(Client *c, int lift);
 static void focusmon(const Arg *arg);
 static void focusstack(const Arg *arg);
 static Client *focustop(Monitor *m);
@@ -621,7 +621,7 @@ buttonpress(struct wl_listener *listener, void *data)
 	case WLR_BUTTON_PRESSED:;
 		/* Change focus if the button was _pressed_ over a client */
 		if ((c = xytoclient(cursor->x, cursor->y)))
-			focusclient(selclient(), c, 1);
+			focusclient(c, 1);
 
 		keyboard = wlr_seat_get_keyboard(seat);
 		mods = wlr_keyboard_get_modifiers(keyboard);
@@ -997,9 +997,10 @@ dirtomon(int dir)
 }
 
 void
-focusclient(Client *old, Client *c, int lift)
+focusclient(Client *c, int lift)
 {
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
+	struct wlr_surface *old = seat->keyboard_state.focused_surface;
 
 	/* Raise client in stacking order if requested */
 	if (c && lift) {
@@ -1008,17 +1009,19 @@ focusclient(Client *old, Client *c, int lift)
 	}
 
 	/* Nothing else to do? */
-	if (c == old)
+	if (c && WLR_SURFACE(c) == old)
 		return;
 
 	/* Deactivate old client if focus is changing */
-	if (c != old && old) {
+	if (old && (!c || WLR_SURFACE(c) != old)) {
+		if (wlr_surface_is_xdg_surface(old))
+			wlr_xdg_toplevel_set_activated(
+					wlr_xdg_surface_from_wlr_surface(old), false);
 #ifdef XWAYLAND
-		if (old->type != XDGShell)
-			wlr_xwayland_surface_activate(old->surface.xwayland, 0);
-		else
+		else if (wlr_surface_is_xwayland_surface(old))
+			wlr_xwayland_surface_activate(
+					wlr_xwayland_surface_from_wlr_surface(old), false);
 #endif
-			wlr_xdg_toplevel_set_activated(old->surface.xdg, 0);
 	}
 
 	/* Update wlroots' keyboard focus */
@@ -1050,10 +1053,8 @@ focusclient(Client *old, Client *c, int lift)
 void
 focusmon(const Arg *arg)
 {
-	Client *sel = selclient();
-
 	selmon = dirtomon(arg->i);
-	focusclient(sel, focustop(selmon), 1);
+	focusclient(focustop(selmon), 1);
 }
 
 void
@@ -1079,7 +1080,7 @@ focusstack(const Arg *arg)
 		}
 	}
 	/* If only one client is visible on selmon, then c == sel */
-	focusclient(sel, c, 1);
+	focusclient(c, 1);
 }
 
 Client *
@@ -1439,7 +1440,7 @@ pointerfocus(Client *c, struct wlr_surface *surface, double sx, double sy,
 #endif
 
 	if (sloppyfocus)
-		focusclient(selclient(), c, 0);
+		focusclient(c, 0);
 }
 
 void
@@ -1783,7 +1784,6 @@ void
 setmon(Client *c, Monitor *m, unsigned int newtags)
 {
 	Monitor *oldmon = c->mon;
-	Client *oldsel = selclient();
 
 	if (oldmon == m)
 		return;
@@ -1801,7 +1801,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
 	}
-	focusclient(oldsel, focustop(selmon), 1);
+	focusclient(focustop(selmon), 1);
 }
 
 void
@@ -2004,7 +2004,7 @@ tag(const Arg *arg)
 	Client *sel = selclient();
 	if (sel && arg->ui & TAGMASK) {
 		sel->tags = arg->ui & TAGMASK;
-		focusclient(sel, focustop(selmon), 1);
+		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
 }
@@ -2071,7 +2071,7 @@ toggletag(const Arg *arg)
 	newtags = sel->tags ^ (arg->ui & TAGMASK);
 	if (newtags) {
 		sel->tags = newtags;
-		focusclient(sel, focustop(selmon), 1);
+		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
 }
@@ -2079,12 +2079,11 @@ toggletag(const Arg *arg)
 void
 toggleview(const Arg *arg)
 {
-	Client *sel = selclient();
 	unsigned int newtagset = selmon->tagset[selmon->seltags] ^ (arg->ui & TAGMASK);
 
 	if (newtagset) {
 		selmon->tagset[selmon->seltags] = newtagset;
-		focusclient(sel, focustop(selmon), 1);
+		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
 }
@@ -2095,7 +2094,7 @@ unmaplayersurface(LayerSurface *layersurface)
 	layersurface->layer_surface->mapped = false;
 	if (layersurface->layer_surface->surface ==
 			seat->keyboard_state.focused_surface)
-		focusclient(NULL, selclient(), 1);
+		focusclient(selclient(), 1);
 	motionnotify(0);
 }
 
@@ -2138,13 +2137,12 @@ updatemons()
 void
 view(const Arg *arg)
 {
-	Client *sel = selclient();
 	if ((arg->ui & TAGMASK) == selmon->tagset[selmon->seltags])
 		return;
 	selmon->seltags ^= 1; /* toggle sel tagset */
 	if (arg->ui & TAGMASK)
 		selmon->tagset[selmon->seltags] = arg->ui & TAGMASK;
-	focusclient(sel, focustop(selmon), 1);
+	focusclient(focustop(selmon), 1);
 	arrange(selmon);
 }
 
@@ -2191,7 +2189,7 @@ xytomon(double x, double y)
 void
 zoom(const Arg *arg)
 {
-	Client *c, *sel = selclient(), *oldsel = sel;
+	Client *c, *sel = selclient();
 
 	if (!sel || !selmon->lt[selmon->sellt]->arrange || sel->isfloating)
 		return;
@@ -2216,7 +2214,7 @@ zoom(const Arg *arg)
 	wl_list_remove(&sel->link);
 	wl_list_insert(&clients, &sel->link);
 
-	focusclient(oldsel, sel, 1);
+	focusclient(sel, 1);
 	arrange(selmon);
 }
 
