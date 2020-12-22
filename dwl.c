@@ -1798,7 +1798,8 @@ renderclients(Monitor *m, struct timespec *now)
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
 					output_layout, m->wlr_output, &c->geom) ||
-				(m->fullscreenclient && m->fullscreenclient != c))
+				(m->fullscreenclient && m->fullscreenclient != c) ||
+				(selmon->lt[selmon->sellt]->arrange == monocle && c != sel))
 				/* Alternative: render at least all fullscreen windows*/
 				/* (m->fullscreenclient && !c->isfullscreen)) */
 			continue;
