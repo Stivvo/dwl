@@ -1599,7 +1599,10 @@ renderclients(Monitor *m, struct timespec *now)
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
-					output_layout, m->wlr_output, &c->geom))
+					output_layout, m->wlr_output, &c->geom) ||
+				(m->fullscreenclient && m->fullscreenclient != c))
+				/* Alternative: render at least all fullscreen windows*/
+				/* (m->fullscreenclient && !c->isfullscreen)) */
 			continue;
 
 		surface = WLR_SURFACE(c);
@@ -1688,7 +1691,8 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
+		if (!m->fullscreenclient)
+			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
 		renderclients(m, &now);
 #ifdef XWAYLAND
 		renderindependents(m->wlr_output, &now);
