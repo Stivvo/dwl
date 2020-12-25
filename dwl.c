@@ -2445,9 +2445,10 @@ tile(Monitor *m)
 			c->bw = borderpx;
 		else if (i < m->nmaster) {
 			c->bw = (n > 1) * borderpx;
-			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
-			resize(c, m->w.x, m->w.y + my, mw, h, 0);
-			my += c->geom.height;
+			r = MIN(n, m->nmaster) - i;
+			h = (m->w.height - my - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
+			resize(c, m->w.x + m->gappov*oe, m->w.y + my, mw - m->gappiv*ie, h, 0);
+			my += c->geom.height + m->gappih*ie;
 		} else {
 			c->bw = borderpx; // of course there's more than 1 client
 			r = n - i;
