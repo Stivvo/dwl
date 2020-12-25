@@ -177,7 +177,6 @@ struct Monitor {
 	double mfact;
 	int nmaster;
 	int position;
-	Client *fullscreenclient;
 	Client *focus;
 };
 
@@ -519,8 +518,6 @@ applyrules(Client *c)
 void
 arrange(Monitor *m)
 {
-	m->fullscreenclient = NULL;
-
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
 	else if (m->focus && m->focus->isfullscreen)
