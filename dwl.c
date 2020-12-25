@@ -177,8 +177,8 @@ struct Monitor {
 	double mfact;
 	int nmaster;
 	int position;
-	Client *fullscreen;
 	Client *fullscreenclient;
+	Client *focus;
 };
 
 typedef struct {
@@ -254,6 +254,7 @@ static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static void maplayersurfacenotify(struct wl_listener *listener, void *data);
 static void maprequest(struct wl_listener *listener, void *data);
+static void maximizeclient(Client *c);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
@@ -265,7 +266,6 @@ static void outputmgrtest(struct wl_listener *listener, void *data);
 static void pointerfocus(Client *c, struct wlr_surface *surface,
 		double sx, double sy, uint32_t time);
 static void quit(const Arg *arg);
-static void quitallfullscreen(Monitor *m);
 static void render(struct wlr_surface *surface, int sx, int sy, void *data);
 static void renderclients(Monitor *m, struct timespec *now);
 static void renderlayer(struct wl_list *layer_surfaces, struct timespec *now);
@@ -523,21 +523,8 @@ arrange(Monitor *m)
 
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
-	else {
-		Client *c;
-		wl_list_for_each_reverse(c, &stack, slink)  {
-			if (VISIBLEON(c, m)) {
-				if (c->isfullscreen) {
-					c->bw = 0;
-					m->fullscreenclient = c;
-					resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-					return;
-				}
-				c->bw = borderpx;
-				resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
-			}
-		}
-	}
+	else if (m->focus && m->focus->isfullscreen)
+		maximizeclient(m->focus);
 	/* XXX recheck pointer focus here... or in resize()? */
 }
 
@@ -771,7 +758,7 @@ cleanupmon(struct wl_listener *listener, void *data)
 	do // don't switch to disabled mons
 		selmon = wl_container_of(mons.prev, selmon, link);
 	while (!selmon->wlr_output->enabled && i++ < nmons);
-	focusclient(selclient(), focustop(selmon), 1);
+	focusclient(focustop(selmon), 1);
 	closemon(m);
 	free(m);
 }
@@ -952,17 +939,6 @@ createmon(struct wl_listener *listener, void *data)
 	}
 }
 
-void quitallfullscreen(Monitor *m) {
-	Client *c;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, m))
-			setfullscreen(c, 0);
-	/* Alternaitve: faster but only disables fullscreen on the focused window.
-	 * All other currently visible fullscreen windows will be left untouched */
-	/* if (selmon->fullscreenclient) */
-	/* 	setfullscreen(selmon->fullscreenclient, 0); */
-}
-
 void
 createnotify(struct wl_listener *listener, void *data)
 {
@@ -973,7 +949,6 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	quitallfullscreen(selmon);
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
@@ -1142,6 +1117,13 @@ togglefullscreen(const Arg *arg)
 }
 
 void
+maximizeclient(Client *c)
+{
+	resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
+	/* used for fullscreen clients */
+}
+
+void
 setfullscreen(Client *c, int fullscreen)
 {
 	c->isfullscreen = fullscreen;
@@ -1153,18 +1135,17 @@ setfullscreen(Client *c, int fullscreen)
 #endif
 		wlr_xdg_toplevel_set_fullscreen(c->surface.xdg, fullscreen);
 
-	// restore previous size instead of arrange to work with floating windows
 	if (fullscreen) {
 		c->bw = 0;
 		c->prevx = c->geom.x;
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
-		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-		c->mon->fullscreenclient = c;
+		maximizeclient(c);
 	} else {
+		/* restore previous size instead of arrange for floating windows since
+		 * client positions are set by the user and cannot be recalculated */
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
-		c->mon->fullscreenclient = NULL;
 		arrange(c->mon);
 	}
 }
@@ -1236,6 +1217,7 @@ focusclient(Client *c, int lift)
 	wl_list_remove(&c->flink);
 	wl_list_insert(&fstack, &c->flink);
 	selmon = c->mon;
+	c->mon->focus = c;
 
 	/* Activate the new client */
 #ifdef XWAYLAND
@@ -1431,7 +1413,7 @@ void
 maprequest(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *c = wl_container_of(listener, c, map);
+	Client *c = wl_container_of(listener, c, map), *oldfocus = selmon->focus;
 
 #ifdef XWAYLAND
 	if (c->type == X11Unmanaged) {
@@ -1462,6 +1444,16 @@ maprequest(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
+
+	if (oldfocus && oldfocus->isfullscreen &&
+			oldfocus->mon == c->mon && oldfocus->tags == c->tags &&
+			!c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
+		maximizeclient(oldfocus);
+		focusclient(oldfocus, 1);
+		/* If a fullscreen client on the same monitor and tag as the new client
+		 * was previously focused and the new client isn't floating, give it
+		 * back focus and size */
+	}
 }
 
 void
@@ -1472,17 +1464,14 @@ monocle(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m))
 			continue;
-		if (c->isfullscreen) {
-			m->fullscreenclient = c;
-			c->bw = 0;
-			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-			return;
-		}
-		if (c->isfloating)
+		if (c->isfullscreen)
+			maximizeclient(c);
+		else if (c->isfloating)
 			c->bw = borderpx;
-		else
+		else {
 			c->bw = 0;
-		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+			resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+		}
 	}
 }
 
@@ -1787,7 +1776,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 void
 renderclients(Monitor *m, struct timespec *now)
 {
-	Client *c, *sel = selclient();
+	Client *c;
 	const float *color;
 	double ox, oy;
 	int i, w, h;
@@ -1801,7 +1790,7 @@ renderclients(Monitor *m, struct timespec *now)
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
 					output_layout, m->wlr_output, &c->geom) ||
 				(m->fullscreenclient && m->fullscreenclient != c) ||
-				(selmon->lt[selmon->sellt]->arrange == monocle && c != sel))
+				(selmon->lt[selmon->sellt]->arrange == monocle && c != m->focus))
 				/* Alternative: render at least all fullscreen windows*/
 				/* (m->fullscreenclient && !c->isfullscreen)) */
 			continue;
@@ -1815,14 +1804,15 @@ renderclients(Monitor *m, struct timespec *now)
 			w = surface->current.width;
 			h = surface->current.height;
 			borders = (struct wlr_box[4]) {
-				{ox, oy, w + 2 * c->bw, c->bw},			 /* top */
-					{ox, oy + c->bw, c->bw, h},				 /* left */
-					{ox + c->bw + w, oy + c->bw, c->bw, h},	 /* right */
-					{ox, oy + c->bw + h, w + 2 * c->bw, c->bw}, /* bottom */
+				{ox, oy, w + 2 * c->bw, c->bw},             /* top */
+				{ox, oy + c->bw, c->bw, h},                 /* left */
+				{ox + c->bw + w, oy + c->bw, c->bw, h},     /* right */
+				{ox, oy + c->bw + h, w + 2 * c->bw, c->bw}, /* bottom */
 			};
 
 			/* Draw window borders */
-			color = (c == sel) ? focuscolor : bordercolor;
+			color = (c == m->focus) ? focuscolor : bordercolor;
+
 			for (i = 0; i < 4; i++) {
 				scalebox(&borders[i], m->wlr_output->scale);
 				wlr_render_rect(drw, &borders[i], color,
@@ -2033,8 +2023,6 @@ setcursor(struct wl_listener *listener, void *data)
 void
 setfloating(Client *c, int floating)
 {
-	if (c->isfloating == floating)
-		return;
 	c->isfloating = floating;
 	c->bw = floating * borderpx;
 	arrange(c->mon);
@@ -2453,22 +2441,15 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m))
 			continue;
-		if (c->isfullscreen) {
-			m->fullscreenclient = c;
-			c->bw = 0;
-			resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-			return;
-		}
-		if (c->isfloating) {
+		if (c->isfullscreen)
+			maximizeclient(c);
+		else if (c->isfloating)
 			c->bw = borderpx;
-			continue;
-		}
-		if (i < m->nmaster) {
+		else if (i < m->nmaster) {
 			c->bw = (n > 1) * borderpx;
-			r = MIN(n, m->nmaster) - i;
-			h = (m->w.height - my - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
-			resize(c, m->w.x + m->gappov*oe, m->w.y + my, mw - m->gappiv*ie, h, 0);
-			my += c->geom.height + m->gappih*ie;
+			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
+			resize(c, m->w.x, m->w.y + my, mw, h, 0);
+			my += c->geom.height;
 		} else {
 			c->bw = borderpx; // of course there's more than 1 client
 			r = n - i;
@@ -2698,7 +2679,6 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
-	quitallfullscreen(selmon);
 
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
