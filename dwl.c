@@ -2433,11 +2433,16 @@ tile(Monitor *m)
 	i = 0;
 	my = ty = m->gappoh*oe;
 	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, m) || c->isfullscreen)
+		if (!VISIBLEON(c, m))
 			continue;
+		if (c->isfullscreen) {
+			c->bw = 0;
+			maximizeclient(c);
+			continue;
+		}
 		if (c->isfloating) {
 			c->bw = borderpx;
-			continue;
+			continue; // skip i++
 		}
 		if (i < m->nmaster) {
 			c->bw = (n > 1) * borderpx;
