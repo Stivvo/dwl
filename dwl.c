@@ -871,6 +871,7 @@ createmon(struct wl_listener *listener, void *data)
 	m->gappov = gappov;
 	m->tagset[0] = m->tagset[1] = 1;
 	m->position = -1;
+	m->focus = NULL;
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
 			m->mfact = r->mfact;
@@ -1780,14 +1781,16 @@ renderclients(Monitor *m, struct timespec *now)
 	struct render_data rdata;
 	struct wlr_box *borders;
 	struct wlr_surface *surface;
+	bool checkfocus = (m->focus && m->focus->isfullscreen) ||
+		(selmon->lt[selmon->sellt]->arrange == monocle);
+	// check m->focus in case c is being moved with the mouse
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
 					output_layout, m->wlr_output, &c->geom) ||
-				(m->focus->isfullscreen && c != m->focus) ||
-				(selmon->lt[selmon->sellt]->arrange == monocle && c != m->focus))
+				(checkfocus && c != m->focus))
 			continue;
 
 		surface = WLR_SURFACE(c);
@@ -2168,10 +2171,13 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	if (oldmon == m)
 		return;
 	c->mon = m;
+	if (c->mon) // check in case setmon is called by unmapnotify
+		c->mon->focus = c;
 
 	/* XXX leave/enter is not optimal but works */
 	if (oldmon) {
 		wlr_surface_send_leave(WLR_SURFACE(c), oldmon->wlr_output);
+		oldmon->focus = focustop(oldmon);
 		arrange(oldmon);
 	}
 	if (m) {
