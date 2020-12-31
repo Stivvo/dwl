@@ -943,9 +943,6 @@ createnotify(struct wl_listener *listener, void *data)
 
 	if (xdg_surface->role != WLR_XDG_SURFACE_ROLE_TOPLEVEL)
 		return;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
 
 	/* Allocate a Client for this surface */
 	c = xdg_surface->data = calloc(1, sizeof(*c));
@@ -1175,6 +1172,7 @@ focusclient(Client *c, int lift)
 		wl_list_remove(&c->flink);
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
+		c->mon->focus = c;
 	}
 
 	/* Deactivate old client if focus is changing */
@@ -2635,9 +2633,6 @@ createnotifyx11(struct wl_listener *listener, void *data)
 {
 	struct wlr_xwayland_surface *xwayland_surface = data;
 	Client *c;
-	wl_list_for_each(c, &clients, link)
-		if (c->isfullscreen && VISIBLEON(c, c->mon))
-			setfullscreen(c, 0);
 
 	/* Allocate a Client for this surface */
 	c = xwayland_surface->data = calloc(1, sizeof(*c));
