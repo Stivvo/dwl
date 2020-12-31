@@ -32,7 +32,9 @@ static const Layout layouts[] = {
 	{ "[M]",      monocle },
 };
 
-/* monitors */
+/* monitors
+ * The order in which monitors are defined determines their position.
+ * Non-configured monitors are always added to the left. */
 static const MonitorRule monrules[] = {
 	/* name       mfact nmaster scale layout       rotate/reflect */
 	/* example of a HiDPI laptop monitor:
@@ -53,10 +55,6 @@ static const struct xkb_rule_names xkb_rules = {
 	*/
 };
 
-/* Trackpad */
-int tap_to_click = 1;
-int natural_scrolling = 1;
-
 static const int repeat_rate = 25;
 static const int repeat_delay = 600;
 
@@ -64,6 +62,9 @@ static const int repeat_delay = 600;
  * recommended to set the same layout in position 0 of kblayouts and in
  * xkb_rules */
 static const char *kblayouts[] = {"us", "gb"};
+/* Trackpad */
+static const int tap_to_click = 1;
+static const int natural_scrolling = 1;
 
 #define MODKEY WLR_MODIFIER_ALT
 #define TAGKEYS(KEY,SKEY,TAG) \

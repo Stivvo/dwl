@@ -67,10 +67,6 @@ static const struct xkb_rule_names xkb_rules = {
     .layout = "gb"
 };
 
-/* Trackpad */
-int tap_to_click = 1;
-int natural_scrolling = 0;
-
 static const int repeat_rate = 25;
 static const int repeat_delay = 600;
 
@@ -78,6 +74,10 @@ static const int repeat_delay = 600;
  * recommended to set the same layout in position 0 of kblayouts and in
  * xkb_rules */
 static const char *kblayouts[] = {"gb", "it"};
+/* Trackpad */
+int tap_to_click = 1;
+int natural_scrolling = 0;
+
 
 #define MODKEY WLR_MODIFIER_LOGO
 #define TAGKEYS(KEY,SKEY,TAG) \
