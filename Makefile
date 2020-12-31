@@ -65,8 +65,5 @@ uninstall:
 clean:
 	rm -f dwl *.o *-protocol.h *-protocol.c
 
-install: dwl
-	install -D dwl $(PREFIX)/bin/dwl
-
 .DEFAULT_GOAL=dwl
 .PHONY: clean
