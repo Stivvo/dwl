@@ -29,8 +29,6 @@ static const Rule rules[] = {
 	{ "fzfLauncher.sh", NULL, 0, 1, -1, 			0, 0, 0, 0 },
 	{ "wayPreviewServer", NULL, 0, 1, -1, 			500, 50, 0, 0 },
 	{ "Alacritty", NULL, 0, 0, -1, 					0, 0, 0, 0 },
-	{ "firefoxdeveloperedition", NULL, 0, 0, -1, 	0, 0, 0, 0 },
-	{ "firefox", 				 NULL, 0, 0, -1, 	0, 0, 0, 0 },
 };
 
 /* layout(s) */
@@ -91,7 +89,7 @@ int natural_scrolling = 0;
 
 /* commands */
 static const char *termcmd[]  = { "alacritty", NULL };
-static const char *browsercmd[] = { "firefox", NULL };
+static const char *browsercmd[] = { "librewolf", NULL };
 static const char *menucmd[] = { "fzfLauncherWrap.sh", NULL };
 static const char *guifmcmd[] = { "nautilus", "--new-window", NULL };
 static const char *calcmd[] = { "gnome-calculator", NULL };
