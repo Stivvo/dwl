@@ -513,14 +513,14 @@ arrange(Monitor *m)
 {
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
-	else {
+	else { // reset borderpx for every client when switching to floating
 		Client *c;
 		wl_list_for_each(c, &clients, link) {
 			if (VISIBLEON(c, m) && !c->isfullscreen)
 				c->bw = borderpx;
 		}
 	}
-	/* XXX recheck pointer focus here... or in resize()? */
+	/* TODO recheck pointer focus here... or in resize()? */
 }
 
 void
@@ -1418,7 +1418,10 @@ monocle(Monitor *m)
 		if (!VISIBLEON(c, m) || c->isfullscreen || c->isfloating)
 			continue;
 		c->bw = 0;
-		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+		if (c->isfullscreen)
+			maximizeclient(c);
+		else
+			resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
 }
 
@@ -2371,7 +2374,9 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfullscreen || c->isfloating)
 			continue;
-		if (i < m->nmaster) {
+		if (c->isfullscreen)
+			maximizeclient(c);
+		else if (i < m->nmaster) {
 			c->bw = (n > 1) * borderpx;
 			r = MIN(n, m->nmaster) - i;
 			h = (m->w.height - my - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
