@@ -484,7 +484,7 @@ arrange(Monitor *m)
 {
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
-	else {
+	else { // reset borderpx for every client when switching to floating
 		Client *c;
 		wl_list_for_each_reverse(c, &stack, slink)  {
 			if (VISIBLEON(c, m)) {
