@@ -25,10 +25,13 @@ static const Rule rules[] = {
 	* When x or y == 0 the client is placed at the center of the screen,
 	* when width or height == 0 the default size of the client is used*/
 
-	{ "gnome-calculator", NULL, 0, 1, -1, 			0, 0, 200, 400 },
-	{ "fzfLauncher.sh", NULL, 0, 1, -1, 			0, 0, 0, 0 },
-	{ "wayPreviewServer", NULL, 0, 1, -1, 			500, 50, 0, 0 },
-	{ "Alacritty", NULL, 0, 0, -1, 					0, 0, 0, 0 },
+	{ "gnome-calculator", 	NULL, 0, 1, -1, 0, 0, 200, 400 },
+	{ "fzfLauncher.sh", 	NULL, 0, 1, -1, 0, 0, 0, 0 },
+	{ "wayPreviewServer", 	NULL, 0, 1, -1, 500, 50, 0, 0 },
+	{ "Alacritty", 			NULL, 0, 0, -1, 0, 0, 0, 0 },
+	{ "librewolf", 			NULL, 2, 0, -1, 0, 0, 0, 0 },
+	{ "thunderbird", 		NULL, 0, 0, -1, 	0, 0, 0, 0 },
+	{ "gnome-calendar", 	NULL, 0, 0, 0, 	0, 0, 0, 0 },
 };
 
 /* layout(s) */
