@@ -311,7 +311,7 @@ static void toggleview(const Arg *arg);
 static void unmaplayersurface(LayerSurface *layersurface);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
-static void updatemons();
+static void updatemons(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static void virtualkeyboard(struct wl_listener *listener, void *data);
 static Client *xytoclient(double x, double y);
@@ -365,6 +365,7 @@ static struct wl_listener cursor_button = {.notify = buttonpress};
 static struct wl_listener cursor_frame = {.notify = cursorframe};
 static struct wl_listener cursor_motion = {.notify = motionrelative};
 static struct wl_listener cursor_motion_absolute = {.notify = motionabsolute};
+static struct wl_listener layout_change = {.notify = updatemons};
 static struct wl_listener new_input = {.notify = inputdevice};
 static struct wl_listener new_virtual_keyboard = {.notify = virtualkeyboard};
 static struct wl_listener new_output = {.notify = createmon};
@@ -461,7 +462,7 @@ applyexclusive(struct wlr_box *usable_area,
 			.margin = margin_right,
 		}
 	};
-	for (size_t i = 0; i < LENGTH(edges); ++i) {
+	for (size_t i = 0; i < LENGTH(edges); i++) {
 		if ((anchor == edges[i].singular_anchor || anchor == edges[i].anchor_triplet)
 				&& exclusive + edges[i].margin > 0) {
 			if (edges[i].positive_axis)
@@ -607,7 +608,6 @@ arrangelayers(Monitor *m)
 		ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY,
 		ZWLR_LAYER_SHELL_V1_LAYER_TOP,
 	};
-	size_t nlayers = LENGTH(layers_above_shell);
 	LayerSurface *layersurface;
 	struct wlr_keyboard *kb = wlr_seat_get_keyboard(seat);
 
@@ -637,7 +637,7 @@ arrangelayers(Monitor *m)
 			&usable_area, 0);
 
 	// Find topmost keyboard interactive layer, if such a layer exists
-	for (size_t i = 0; i < nlayers; ++i) {
+	for (size_t i = 0; i < LENGTH(layers_above_shell); i++) {
 		wl_list_for_each_reverse(layersurface,
 				&m->layers[layers_above_shell[i]], link) {
 			if (layersurface->layer_surface->current.keyboard_interactive &&
@@ -758,7 +758,6 @@ cleanupmon(struct wl_listener *listener, void *data)
 	wl_list_remove(&m->frame.link);
 	wl_list_remove(&m->link);
 	wlr_output_layout_remove(output_layout, m->wlr_output);
-	updatemons();
 
 	nmons = wl_list_length(&mons);
 	do // don't switch to disabled mons
@@ -858,22 +857,16 @@ createmon(struct wl_listener *listener, void *data)
 	 * monitor) becomes available. */
 	struct wlr_output *wlr_output = data;
 	const MonitorRule *r;
-	size_t nlayers;
-	Monitor *m, *moni, *insertmon = NULL;
-
-	/* The mode is a tuple of (width, height, refresh rate), and each
-	 * monitor supports only a specific set of modes. We just pick the
-	 * monitor's preferred mode; a more sophisticated compositor would let
-	 * the user configure it. */
-	wlr_output_set_mode(wlr_output, wlr_output_preferred_mode(wlr_output));
-
-	/* Allocates and configures monitor state using configured rules */
-	m = wlr_output->data = calloc(1, sizeof(*m));
+	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 	m->gappih = gappih;
 	m->gappiv = gappiv;
 	m->gappoh = gappoh;
 	m->gappov = gappov;
+
+	/* Initialize monitor state using configured rules */
+	for (size_t i = 0; i < LENGTH(m->layers); i++)
+		wl_list_init(&m->layers[i]);
 	m->tagset[0] = m->tagset[1] = 1;
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
@@ -886,7 +879,14 @@ createmon(struct wl_listener *listener, void *data)
 			break;
 		}
 	}
+
+	/* The mode is a tuple of (width, height, refresh rate), and each
+	 * monitor supports only a specific set of modes. We just pick the
+	 * monitor's preferred mode; a more sophisticated compositor would let
+	 * the user configure it. */
+	wlr_output_set_mode(wlr_output, wlr_output_preferred_mode(wlr_output));
 	wlr_output_enable_adaptive_sync(wlr_output, 1);
+
 	/* Set up event listeners */
 	LISTEN(&wlr_output->events.frame, &m->frame, rendermon);
 	LISTEN(&wlr_output->events.destroy, &m->destroy, cleanupmon);
@@ -905,12 +905,7 @@ createmon(struct wl_listener *listener, void *data)
 	wlr_output_layout_add(output_layout, wlr_output, r->x, r->y);
 	sgeom = *wlr_output_layout_get_box(output_layout, NULL);
 
-	nlayers = LENGTH(m->layers);
-	for (size_t i = 0; i < nlayers; ++i)
-		wl_list_init(&m->layers[i]);
-
 	/* When adding monitors, the geometries of all monitors must be updated */
-	updatemons();
 	wl_list_for_each(m, &mons, link) {
 		/* The first monitor in the list is the most recently added */
 		Client *c;
@@ -1560,6 +1555,12 @@ outputmgrapply(struct wl_listener *listener, void *data)
 void
 outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 {
+	/*
+	 * Called when a client such as wlr-randr requests a change in output
+	 * configuration.  This is only one way that the layout can be changed,
+	 * so any Monitor information should be updated by updatemons() after an
+	 * output_layout.change event, not here.
+	 */
 	struct wlr_output_configuration_head_v1 *config_head;
 	int ok = 1;
 
@@ -1580,30 +1581,20 @@ outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test)
 					config_head->state.x, config_head->state.y);
 			wlr_output_set_transform(wlr_output, config_head->state.transform);
 			wlr_output_set_scale(wlr_output, config_head->state.scale);
-		} else if (wl_list_length(&mons) > 1) {
-			Monitor *m;
-			wl_list_for_each(m, &mons, link) {
-				if (m->wlr_output->name == wlr_output->name) {
-					// focus the left monitor (relative to the current focus)
-					m->wlr_output->enabled = !m->wlr_output->enabled;
-					focusmon(&(Arg) {.i = -1});
-					closemon(m);
-					m->wlr_output->enabled = !m->wlr_output->enabled;
-				}
-			}
 		}
 
-		if (test) {
-			ok &= wlr_output_test(wlr_output);
-			wlr_output_rollback(wlr_output);
-		} else
-			ok &= wlr_output_commit(wlr_output);
+		if (!(ok = wlr_output_test(wlr_output)))
+			break;
 	}
-	if (ok) {
+	wl_list_for_each(config_head, &config->heads, link) {
+		if (ok && !test)
+			wlr_output_commit(config_head->state.output);
+		else
+			wlr_output_rollback(config_head->state.output);
+	}
+	if (ok)
 		wlr_output_configuration_v1_send_succeeded(config);
-		if (!test)
-			updatemons();
-	} else
+	else
 		wlr_output_configuration_v1_send_failed(config);
 	wlr_output_configuration_v1_destroy(config);
 }
@@ -2195,6 +2186,7 @@ setup(void)
 	/* Creates an output layout, which a wlroots utility for working with an
 	 * arrangement of screens in a physical layout. */
 	output_layout = wlr_output_layout_create();
+	wl_signal_add(&output_layout->events.change, &layout_change);
 	wlr_xdg_output_manager_v1_create(dpy, output_layout);
 
 	/* Configure a listener to be notified when new outputs are available on the
@@ -2478,8 +2470,15 @@ unmapnotify(struct wl_listener *listener, void *data)
 }
 
 void
-updatemons()
+updatemons(struct wl_listener *listener, void *data)
 {
+	/*
+	 * Called whenever the output layout changes: adding or removing a
+	 * monitor, changing an output's mode or position, etc.  This is where
+	 * the change officially happens and we update geometry, window
+	 * positions, focus, and the stored configuration in wlroots'
+	 * output-manager implementation.
+	 */
 	struct wlr_output_configuration_v1 *config =
 		wlr_output_configuration_v1_create();
 	Monitor *m;
@@ -2487,6 +2486,9 @@ updatemons()
 	wl_list_for_each(m, &mons, link) {
 		struct wlr_output_configuration_head_v1 *config_head =
 			wlr_output_configuration_head_v1_create(config, m->wlr_output);
+
+		/* TODO: move clients off disabled monitors */
+		/* TODO: move focus if selmon is disabled */
 
 		/* Get the effective monitor geometry to use for surfaces */
 		m->m = m->w = *wlr_output_layout_get_box(output_layout, m->wlr_output);
