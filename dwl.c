@@ -513,14 +513,14 @@ arrange(Monitor *m)
 {
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
-	else {
+	else { // reset borderpx for every client when switching to floating
 		Client *c;
 		wl_list_for_each(c, &clients, link) {
 			if (VISIBLEON(c, m) && !c->isfullscreen)
 				c->bw = borderpx;
 		}
 	}
-	/* XXX recheck pointer focus here... or in resize()? */
+	/* TODO recheck pointer focus here... or in resize()? */
 }
 
 void
@@ -1418,7 +1418,14 @@ monocle(Monitor *m)
 		if (!VISIBLEON(c, m) || c->isfullscreen || c->isfloating)
 			continue;
 		c->bw = 0;
+<<<<<<< HEAD
 		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+=======
+		if (c->isfullscreen)
+			maximizeclient(c);
+		else
+			resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+>>>>>>> smartBorders
 	}
 }
 
@@ -2371,12 +2378,22 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfullscreen || c->isfloating)
 			continue;
+<<<<<<< HEAD
 		if (i < m->nmaster) {
 			c->bw = (n > 1) * borderpx;
 			r = MIN(n, m->nmaster) - i;
 			h = (m->w.height - my - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
 			resize(c, m->w.x + m->gappov*oe, m->w.y + my, mw - m->gappiv*ie, h, 0);
 			my += c->geom.height + m->gappih*ie;
+=======
+		if (c->isfullscreen)
+			maximizeclient(c);
+		else if (i < m->nmaster) {
+			c->bw = (n > 1) * borderpx;
+			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
+			resize(c, m->w.x, m->w.y + my, mw, h, 0);
+			my += c->geom.height;
+>>>>>>> smartBorders
 		} else {
 			c->bw = borderpx; // of course there's more than 1 client
 			r = n - i;
