@@ -485,10 +485,8 @@ arrange(Monitor *m)
 	else { // reset borderpx for every client when switching to floating
 		Client *c;
 		wl_list_for_each_reverse(c, &stack, slink)  {
-			if (VISIBLEON(c, m)) {
+			if (VISIBLEON(c, m))
 				c->bw = borderpx;
-				resize(c, c->geom.x, c->geom.y, c->geom.width, c->geom.height, 0);
-			}
 		}
 	}
 	/* TODO recheck pointer focus here... or in resize()? */
