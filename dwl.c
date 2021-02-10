@@ -175,7 +175,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
-	Client *fullscreenclient;
+	Client *focus;
 };
 
 typedef struct {
@@ -484,6 +484,7 @@ arrange(Monitor *m)
 {
 	if (m->lt[m->sellt]->arrange)
 		m->lt[m->sellt]->arrange(m);
+<<<<<<< HEAD
 	else { // reset borderpx for every client when switching to floating
 		Client *c;
 		wl_list_for_each_reverse(c, &stack, slink)  {
@@ -493,6 +494,10 @@ arrange(Monitor *m)
 			}
 		}
 	}
+=======
+	else if (m->focus && m->focus->isfullscreen)
+		maximizeclient(m->focus);
+>>>>>>> fullscreen
 	/* TODO recheck pointer focus here... or in resize()? */
 }
 
@@ -1070,13 +1075,11 @@ setfullscreen(Client *c, int fullscreen)
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
-		c->mon->fullscreenclient = c;
 		maximizeclient(c);
 	} else {
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
 		resize(c, c->prevx, c->prevy, c->prevwidth, c->prevheight, 0);
-		c->mon->fullscreenclient = NULL;
 		arrange(c->mon);
 	}
 }
@@ -1342,7 +1345,7 @@ void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *c = wl_container_of(listener, c, map), *oldfocus = selclient();
+	Client *c = wl_container_of(listener, c, map), *oldfocus = selmon->focus;
 
 	if (client_is_unmanaged(c)) {
 		/* Insert this independent into independents lists. */
@@ -1362,12 +1365,14 @@ mapnotify(struct wl_listener *listener, void *data)
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
 
-	if (c->mon->fullscreenclient && c->mon->fullscreenclient == oldfocus
-			&& !c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
-		maximizeclient(c->mon->fullscreenclient);
-		focusclient(c->mon->fullscreenclient, 1);
-		/* give the focus back the fullscreen client on that monitor if exists,
-		 * is focused and the new client isn't floating */
+	if (oldfocus && oldfocus->isfullscreen &&
+			oldfocus->mon == c->mon && oldfocus->tags == c->tags &&
+			!c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
+		maximizeclient(oldfocus);
+		focusclient(c, 1);
+		/* If a fullscreen client on the same monitor and tag as the new client
+		 * was previously focused and the new client isn't floating, give it
+		 * back focus and size */
 	}
 }
 
@@ -1677,7 +1682,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 void
 renderclients(Monitor *m, struct timespec *now)
 {
-	Client *c, *sel = selclient();
+	Client *c;
 	const float *color;
 	double ox, oy;
 	int i, w, h;
@@ -1708,7 +1713,7 @@ renderclients(Monitor *m, struct timespec *now)
 			};
 
 			/* Draw window borders */
-			color = (c == sel) ? focuscolor : bordercolor;
+			color = (c == selmon->focus) ? focuscolor : bordercolor;
 			for (i = 0; i < 4; i++) {
 				scalebox(&borders[i], m->wlr_output->scale);
 				wlr_render_rect(drw, &borders[i], color,
@@ -2204,10 +2209,16 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating)
 			continue;
-		if (c->isfullscreen)
+		if (c->isfullscreen) {
 			maximizeclient(c);
+<<<<<<< HEAD
 		else if (i < m->nmaster) {
 			c->bw = (n > 1) * borderpx;
+=======
+			continue;
+		}
+		if (i < m->nmaster) {
+>>>>>>> fullscreen
 			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
 			my += c->geom.height;
