@@ -179,6 +179,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
+	Client *focus;
 };
 
 typedef struct {
@@ -860,6 +861,7 @@ createmon(struct wl_listener *listener, void *data)
 	m->gappiv = gappiv;
 	m->gappoh = gappoh;
 	m->gappov = gappov;
+	m->focus = NULL;
 
 	/* Initialize monitor state using configured rules */
 	for (size_t i = 0; i < LENGTH(m->layers); i++)
@@ -1145,6 +1147,7 @@ focusclient(Client *c, int lift)
 		wl_list_remove(&c->flink);
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
+		c->mon->focus = c;
 	}
 
 	/* Deactivate old client if focus is changing */
@@ -1691,23 +1694,23 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 void
 renderclients(Monitor *m, struct timespec *now)
 {
-	Client *c, *sel = selclient();
+	Client *c;
 	const float *color;
 	double ox, oy;
 	int i, w, h;
 	struct render_data rdata;
 	struct wlr_box *borders;
 	struct wlr_surface *surface;
-	bool checkfocus = (sel && sel->isfullscreen) ||
-		(selmon->lt[selmon->sellt]->arrange == monocle);
 	// check sel in case c is being moved with the mouse
+	bool hide = (m->focus && m->focus->isfullscreen) ||
+		(selmon->lt[selmon->sellt]->arrange == monocle);
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
 					output_layout, m->wlr_output, &c->geom) ||
-				(checkfocus && c != sel))
+				(hide && c != m->focus)) /* only render the focused fullscreen client */
 			continue;
 
 		surface = client_surface(c);
@@ -1792,7 +1795,7 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		if (!sel || !sel->isfullscreen)
+		if (!m->focus || !m->focus->isfullscreen) /* render waybar and similar */
 			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
 		renderclients(m, &now);
 #ifdef XWAYLAND
