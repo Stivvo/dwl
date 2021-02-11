@@ -179,7 +179,6 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
-	Client *focus;
 };
 
 typedef struct {
@@ -257,7 +256,6 @@ static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static void maplayersurfacenotify(struct wl_listener *listener, void *data);
 static void mapnotify(struct wl_listener *listener, void *data);
-static void maximizeclient(Client *c);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
@@ -515,10 +513,9 @@ arrange(Monitor *m)
 		m->lt[m->sellt]->arrange(m);
 	else { // reset borderpx for every client when switching to floating
 		Client *c;
-		wl_list_for_each(c, &clients, link) {
-			if (VISIBLEON(c, m) && !c->isfullscreen)
+		wl_list_for_each_reverse(c, &stack, slink)
+			if (VISIBLEON(c, m))
 				c->bw = borderpx;
-		}
 	}
 	/* TODO recheck pointer focus here... or in resize()? */
 }
@@ -1086,13 +1083,6 @@ togglefullscreen(const Arg *arg)
 }
 
 void
-maximizeclient(Client *c)
-{
-	resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
-	/* used for fullscreen clients */
-}
-
-void
 setfullscreen(Client *c, int fullscreen)
 {
 	c->isfullscreen = fullscreen;
@@ -1104,7 +1094,7 @@ setfullscreen(Client *c, int fullscreen)
 		c->prevy = c->geom.y;
 		c->prevheight = c->geom.height;
 		c->prevwidth = c->geom.width;
-		maximizeclient(c);
+		resize(c, c->mon->m.x, c->mon->m.y, c->mon->m.width, c->mon->m.height, 0);
 	} else {
 		/* restore previous size instead of arrange for floating windows since
 		 * client positions are set by the user and cannot be recalculated */
@@ -1155,7 +1145,6 @@ focusclient(Client *c, int lift)
 		wl_list_remove(&c->flink);
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
-		c->mon->focus = c;
 	}
 
 	/* Deactivate old client if focus is changing */
@@ -1378,7 +1367,7 @@ void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
-	Client *c = wl_container_of(listener, c, map), *oldfocus = selmon->focus;
+	Client *c = wl_container_of(listener, c, map);
 
 	if (client_is_unmanaged(c)) {
 		/* Insert this independent into independents lists. */
@@ -1397,16 +1386,6 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
-
-	if (oldfocus && oldfocus->isfullscreen &&
-			oldfocus->mon == c->mon && oldfocus->tags == c->tags &&
-			!c->isfloating && c->mon->lt[c->mon->sellt]->arrange) {
-		maximizeclient(oldfocus);
-		focusclient(oldfocus, 1);
-		/* If a fullscreen client on the same monitor and tag as the new client
-		 * was previously focused and the new client isn't floating, give it
-		 * back focus and size */
-	}
 }
 
 void
@@ -1415,13 +1394,10 @@ monocle(Monitor *m)
 	Client *c;
 
 	wl_list_for_each(c, &clients, link) {
-		if (!VISIBLEON(c, m) || c->isfullscreen || c->isfloating)
+		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
 		c->bw = 0;
-		if (c->isfullscreen)
-			maximizeclient(c);
-		else
-			resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
+		resize(c, m->w.x, m->w.y, m->w.width, m->w.height, 0);
 	}
 }
 
@@ -1715,23 +1691,23 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 void
 renderclients(Monitor *m, struct timespec *now)
 {
-	Client *c;
+	Client *c, *sel = selclient();
 	const float *color;
 	double ox, oy;
 	int i, w, h;
 	struct render_data rdata;
 	struct wlr_box *borders;
 	struct wlr_surface *surface;
-	bool checkfocus = (m->focus && m->focus->isfullscreen) ||
+	bool checkfocus = (sel && sel->isfullscreen) ||
 		(selmon->lt[selmon->sellt]->arrange == monocle);
-	// check m->focus in case c is being moved with the mouse
+	// check sel in case c is being moved with the mouse
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
 					output_layout, m->wlr_output, &c->geom) ||
-				(checkfocus && c != m->focus))
+				(checkfocus && c != sel))
 			continue;
 
 		surface = client_surface(c);
@@ -1750,7 +1726,7 @@ renderclients(Monitor *m, struct timespec *now)
 			};
 
 			/* Draw window borders */
-			color = (c == selmon->focus) ? focuscolor : bordercolor;
+			color = (c->surface.xdg->toplevel->current.activated) ? focuscolor : bordercolor;
 			for (i = 0; i < 4; i++) {
 				scalebox(&borders[i], m->wlr_output->scale);
 				wlr_render_rect(drw, &borders[i], color,
@@ -1788,7 +1764,7 @@ renderlayer(struct wl_list *layer_surfaces, struct timespec *now)
 void
 rendermon(struct wl_listener *listener, void *data)
 {
-	Client *c;
+	Client *c, *sel = selclient();
 	int render = 1;
 
 	/* This function is called every time an output is ready to display a frame,
@@ -1816,7 +1792,7 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		if (!m->focus || !m->focus->isfullscreen)
+		if (!sel || !sel->isfullscreen)
 			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
 		renderclients(m, &now);
 #ifdef XWAYLAND
@@ -2103,13 +2079,10 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	if (oldmon == m)
 		return;
 	c->mon = m;
-	if (c->mon) // check in case setmon is called by unmapnotify
-		c->mon->focus = c;
 
 	/* TODO leave/enter is not optimal but works */
 	if (oldmon) {
 		wlr_surface_send_leave(client_surface(c), oldmon->wlr_output);
-		oldmon->focus = focustop(oldmon);
 		arrange(oldmon);
 	}
 	if (m) {
@@ -2374,9 +2347,7 @@ tile(Monitor *m)
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfullscreen || c->isfloating)
 			continue;
-		if (c->isfullscreen)
-			maximizeclient(c);
-		else if (i < m->nmaster) {
+		if (i < m->nmaster) {
 			c->bw = (n > 1) * borderpx;
 			r = MIN(n, m->nmaster) - i;
 			h = (m->w.height - my - m->gappoh*oe - m->gappih*ie * (r - 1)) / r;
