@@ -175,6 +175,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
+	Client *focus;
 };
 
 typedef struct {
@@ -815,6 +816,7 @@ createmon(struct wl_listener *listener, void *data)
 	const MonitorRule *r;
 	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
+	m->focus = NULL;
 
 	/* Initialize monitor state using configured rules */
 	for (size_t i = 0; i < LENGTH(m->layers); i++)
@@ -1099,6 +1101,7 @@ focusclient(Client *c, int lift)
 		wl_list_remove(&c->flink);
 		wl_list_insert(&fstack, &c->flink);
 		selmon = c->mon;
+		c->mon->focus = c;
 	}
 
 	/* Deactivate old client if focus is changing */
@@ -1649,12 +1652,14 @@ renderclients(Monitor *m, struct timespec *now)
 	struct render_data rdata;
 	struct wlr_box *borders;
 	struct wlr_surface *surface;
+	bool hide = m->focus && m->focus->isfullscreen;
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
 	wl_list_for_each_reverse(c, &stack, slink) {
 		/* Only render visible clients which show on this monitor */
 		if (!VISIBLEON(c, c->mon) || !wlr_output_layout_intersects(
-					output_layout, m->wlr_output, &c->geom))
+					output_layout, m->wlr_output, &c->geom) ||
+				(hide && c != m->focus)) /* only render the focused fullscreen client */
 			continue;
 
 		surface = client_surface(c);
@@ -1739,7 +1744,8 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
+		if (!m->focus || !m->focus->isfullscreen) /* render waybar and similar */
+			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
 		renderclients(m, &now);
 #ifdef XWAYLAND
 		renderindependents(m->wlr_output, &now);
