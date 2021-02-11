@@ -1703,7 +1703,7 @@ renderclients(Monitor *m, struct timespec *now)
 	struct wlr_surface *surface;
 	// check sel in case c is being moved with the mouse
 	bool hide = (m->focus && m->focus->isfullscreen) ||
-		(selmon->lt[selmon->sellt]->arrange == monocle);
+		(m->lt[m->sellt]->arrange == monocle);
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
 	wl_list_for_each_reverse(c, &stack, slink) {
