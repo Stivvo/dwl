@@ -176,6 +176,7 @@ struct Monitor {
 	double mfact;
 	int nmaster;
 	Client *focus;
+	unsigned int nclients;
 };
 
 typedef struct {
@@ -817,6 +818,7 @@ createmon(struct wl_listener *listener, void *data)
 	Monitor *m = wlr_output->data = calloc(1, sizeof(*m));
 	m->wlr_output = wlr_output;
 	m->focus = NULL;
+	m->nclients = 0;
 
 	/* Initialize monitor state using configured rules */
 	for (size_t i = 0; i < LENGTH(m->layers); i++)
@@ -1341,6 +1343,7 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
+	++c->mon->nclients;
 }
 
 void
@@ -1744,7 +1747,7 @@ rendermon(struct wl_listener *listener, void *data)
 		wlr_renderer_clear(drw, rootcolor);
 
 		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		if (!m->focus || !m->focus->isfullscreen) /* render waybar and similar */
+		if (!(m->nclients && m->focus->isfullscreen)) /* render waybar and similar */
 			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
 		renderclients(m, &now);
 #ifdef XWAYLAND
@@ -1923,6 +1926,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	if (oldmon) {
 		wlr_surface_send_leave(client_surface(c), oldmon->wlr_output);
 		arrange(oldmon);
+		--oldmon->nclients;
 	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
@@ -1930,6 +1934,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		wlr_surface_send_enter(client_surface(c), m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
+		++m->nclients;
 	}
 	focusclient(focustop(selmon), 1);
 }
@@ -2171,6 +2176,7 @@ tile(Monitor *m)
 	else
 		mw = m->w.width;
 	i = my = ty = 0;
+
 	wl_list_for_each(c, &clients, link) {
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
@@ -2246,6 +2252,7 @@ unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
+	--c->mon->nclients;
 	wl_list_remove(&c->link);
 	if (client_is_unmanaged(c))
 		return;
@@ -2419,6 +2426,7 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
 	c->isfullscreen = 0;
+	++c->mon->nclients;
 
 	/* Listen to the various events it can emit */
 	LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
