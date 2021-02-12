@@ -2426,7 +2426,6 @@ createnotifyx11(struct wl_listener *listener, void *data)
 	c->type = xwayland_surface->override_redirect ? X11Unmanaged : X11Managed;
 	c->bw = borderpx;
 	c->isfullscreen = 0;
-	++c->mon->nclients;
 
 	/* Listen to the various events it can emit */
 	LISTEN(&xwayland_surface->events.map, &c->map, mapnotify);
