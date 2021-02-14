@@ -29,9 +29,8 @@ static const Rule rules[] = {
 	{ "fzfLauncher.sh", 	NULL, 0, 1, -1, 0, 0, 0, 0 },
 	{ "wayPreviewServer", 	NULL, 0, 1, -1, 500, 50, 0, 0 },
 	{ "Alacritty", 			NULL, 0, 0, -1, 0, 0, 0, 0 },
-	{ "librewolf", 			NULL, 2, 0, -1, 0, 0, 0, 0 },
 	{ "thunderbird", 		NULL, 0, 0, -1, 	0, 0, 0, 0 },
-	{ "gnome-calendar", 	NULL, 0, 0, 0, 	0, 0, 0, 0 },
+	/* { "gnome-calendar", 	NULL, 0, 0, 0, 	0, 0, 0, 0 }, */
 };
 
 /* layout(s) */
