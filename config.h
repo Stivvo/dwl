@@ -28,9 +28,6 @@ static const Rule rules[] = {
 	{ "gnome-calculator", 	NULL, 0, 1, -1, 0, 0, 200, 400 },
 	{ "fzfLauncher.sh", 	NULL, 0, 1, -1, 0, 0, 0, 0 },
 	{ "wayPreviewServer", 	NULL, 0, 1, -1, 500, 50, 0, 0 },
-	{ "Alacritty", 			NULL, 0, 0, -1, 0, 0, 0, 0 },
-	{ "thunderbird", 		NULL, 0, 0, -1, 	0, 0, 0, 0 },
-	/* { "gnome-calendar", 	NULL, 0, 0, 0, 	0, 0, 0, 0 }, */
 };
 
 /* layout(s) */
@@ -93,7 +90,7 @@ int natural_scrolling = 0;
 static const char *termcmd[]  = { "alacritty", NULL };
 static const char *browsercmd[] = { "librewolf", NULL };
 static const char *menucmd[] = { "fzfLauncherWrap.sh", NULL };
-static const char *guifmcmd[] = { "nautilus", "--new-window", NULL };
+static const char *guifmcmd[] = { "dolphin", "--new-window", NULL };
 static const char *calcmd[] = { "gnome-calculator", NULL };
 static const char *idecmd[] = { "qtcreator.sh", NULL };
 static const char *vUpcmd[] = { "volume.sh", "up", "5", NULL };
