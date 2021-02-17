@@ -27,6 +27,7 @@ static const Rule rules[] = {
 
 	{ "gnome-calculator", 	NULL, 0, 1, -1, 0, 0, 200, 400 },
 	{ "fzfLauncher.sh", 	NULL, 0, 1, -1, 0, 0, 0, 0 },
+	{ "krunner", 			NULL, 0, 1, -1, 0, 0, 0, 0 },
 	{ "wayPreviewServer", 	NULL, 0, 1, -1, 500, 50, 0, 0 },
 };
 
@@ -90,6 +91,7 @@ int natural_scrolling = 0;
 static const char *termcmd[]  = { "alacritty", NULL };
 static const char *browsercmd[] = { "librewolf", NULL };
 static const char *menucmd[] = { "fzfLauncherWrap.sh", NULL };
+static const char *krunner[] = { "krunner", NULL };
 static const char *guifmcmd[] = { "dolphin", "--new-window", NULL };
 static const char *calcmd[] = { "gnome-calculator", NULL };
 static const char *idecmd[] = { "qtcreator.sh", NULL };
@@ -118,6 +120,7 @@ static const Key keys[] = {
 	{ MODKEY,                    	XKB_KEY_Return, 	spawn,          	{.v = termcmd} },
 	{ MODKEY,                    	XKB_KEY_b,         	spawn,          	{.v = browsercmd} },
 	{ MODKEY,					 	XKB_KEY_p,         	spawn,          	{.v = menucmd} },
+	{ MODKEY,					 	XKB_KEY_i,         	spawn,          	{.v = krunner} },
 	{ 0, XKB_KEY_XF86Calculator,      					spawn, 		 		{.v = calcmd} },
 	{ 0, XKB_KEY_XF86Explorer,        					spawn, 		 		{.v = guifmcmd} },
 	{ 0, XKB_KEY_XF86Tools,           					spawn, 		 		{.v = idecmd} },
