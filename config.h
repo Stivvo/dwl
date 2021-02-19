@@ -28,6 +28,7 @@ static const Rule rules[] = {
 	{ "gnome-calculator", 	NULL, 0, 1, -1, 0, 0, 200, 400 },
 	{ "fzfLauncher.sh", 	NULL, 0, 1, -1, 0, 0, 0, 0 },
 	{ "krunner", 			NULL, 0, 1, -1, 0, 0, 0, 0 },
+	{ "droidcam", 			NULL, 0, 1, -1, 0, 0, 0, 0 },
 	{ "wayPreviewServer", 	NULL, 0, 1, -1, 500, 50, 0, 0 },
 };
 
