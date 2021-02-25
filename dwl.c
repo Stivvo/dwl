@@ -175,6 +175,7 @@ struct Monitor {
 	unsigned int tagset[2];
 	double mfact;
 	int nmaster;
+	Client *focus;
 };
 
 typedef struct {
@@ -1033,9 +1034,8 @@ destroyxdeco(struct wl_listener *listener, void *data)
 void
 togglefullscreen(const Arg *arg)
 {
-	Client *sel = selclient();
-	if (sel)
-		setfullscreen(sel, !sel->isfullscreen);
+	if (selmon->focus)
+		setfullscreen(selmon->focus, !selmon->focus->isfullscreen);
 }
 
 void
@@ -1085,6 +1085,7 @@ focusclient(Client *c, int lift)
 {
 	struct wlr_surface *old = seat->keyboard_state.focused_surface;
 	struct wlr_keyboard *kb;
+	selmon->focus = c;
 
 	/* Raise client in stacking order if requested */
 	if (c && lift) {
@@ -1151,18 +1152,18 @@ void
 focusstack(const Arg *arg)
 {
 	/* Focus the next or previous client (in tiling order) on selmon */
-	Client *c, *sel = selclient();
-	if (!sel)
+	Client *c;
+	if (!selmon->focus)
 		return;
 	if (arg->i > 0) {
-		wl_list_for_each(c, &sel->link, link) {
+		wl_list_for_each(c, &selmon->focus->link, link) {
 			if (&c->link == &clients)
 				continue;  /* wrap past the sentinel node */
 			if (VISIBLEON(c, selmon))
 				break;  /* found it */
 		}
 	} else {
-		wl_list_for_each_reverse(c, &sel->link, link) {
+		wl_list_for_each_reverse(c, &selmon->focus->link, link) {
 			if (&c->link == &clients)
 				continue;  /* wrap past the sentinel node */
 			if (VISIBLEON(c, selmon))
@@ -1302,10 +1303,9 @@ keypressmod(struct wl_listener *listener, void *data)
 void
 killclient(const Arg *arg)
 {
-	Client *sel = selclient();
-	if (!sel)
+	if (!selmon->focus)
 		return;
-	client_send_close(sel);
+	client_send_close(selmon->focus);
 }
 
 void
@@ -1643,7 +1643,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 void
 renderclients(Monitor *m, struct timespec *now)
 {
-	Client *c, *sel = selclient();
+	Client *c;
 	const float *color;
 	double ox, oy;
 	int i, w, h;
@@ -1674,7 +1674,7 @@ renderclients(Monitor *m, struct timespec *now)
 			};
 
 			/* Draw window borders */
-			color = (c == sel) ? focuscolor : bordercolor;
+			color = (c == selmon->focus) ? focuscolor : bordercolor;
 			for (i = 0; i < 4; i++) {
 				scalebox(&borders[i], m->wlr_output->scale);
 				wlr_render_rect(drw, &borders[i], color,
@@ -2132,9 +2132,8 @@ spawn(const Arg *arg)
 void
 tag(const Arg *arg)
 {
-	Client *sel = selclient();
-	if (sel && arg->ui & TAGMASK) {
-		sel->tags = arg->ui & TAGMASK;
+	if (selmon->focus && arg->ui & TAGMASK) {
+		selmon->focus->tags = arg->ui & TAGMASK;
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
@@ -2143,10 +2142,9 @@ tag(const Arg *arg)
 void
 tagmon(const Arg *arg)
 {
-	Client *sel = selclient();
-	if (!sel)
+	if (!selmon->focus)
 		return;
-	setmon(sel, dirtomon(arg->i), 0);
+	setmon(selmon->focus, dirtomon(arg->i), 0);
 }
 
 void
@@ -2185,23 +2183,20 @@ tile(Monitor *m)
 void
 togglefloating(const Arg *arg)
 {
-	Client *sel = selclient();
-	if (!sel)
+	if (!selmon->focus)
 		return;
-	/* return if fullscreen */
-	setfloating(sel, !sel->isfloating /* || sel->isfixed */);
+	setfloating(selmon->focus, !selmon->focus->isfloating /* || sel->isfixed */);
 }
 
 void
 toggletag(const Arg *arg)
 {
 	unsigned int newtags;
-	Client *sel = selclient();
-	if (!sel)
+	if (!selmon->focus)
 		return;
-	newtags = sel->tags ^ (arg->ui & TAGMASK);
+	newtags = selmon->focus->tags ^ (arg->ui & TAGMASK);
 	if (newtags) {
-		sel->tags = newtags;
+		selmon->focus->tags = newtags;
 		focusclient(focustop(selmon), 1);
 		arrange(selmon);
 	}
@@ -2225,7 +2220,7 @@ unmaplayersurface(LayerSurface *layersurface)
 	layersurface->layer_surface->mapped = 0;
 	if (layersurface->layer_surface->surface ==
 			seat->keyboard_state.focused_surface)
-		focusclient(selclient(), 1);
+		focusclient(selmon->focus, 1);
 	motionnotify(0);
 }
 
@@ -2350,18 +2345,18 @@ xytomon(double x, double y)
 void
 zoom(const Arg *arg)
 {
-	Client *c, *sel = selclient();
+	Client *c;
 
-	if (!sel || !selmon->lt[selmon->sellt]->arrange || sel->isfloating)
+	if (!selmon->focus || !selmon->lt[selmon->sellt]->arrange || selmon->focus->isfloating)
 		return;
 
 	/* Search for the first tiled window that is not sel, marking sel as
 	 * NULL if we pass it along the way */
 	wl_list_for_each(c, &clients, link)
 		if (VISIBLEON(c, selmon) && !c->isfloating) {
-			if (c != sel)
+			if (c != selmon->focus)
 				break;
-			sel = NULL;
+			selmon->focus = NULL;
 		}
 
 	/* Return if no other tiled window was found */
@@ -2370,12 +2365,12 @@ zoom(const Arg *arg)
 
 	/* If we passed sel, move c to the front; otherwise, move sel to the
 	 * front */
-	if (!sel)
-		sel = c;
-	wl_list_remove(&sel->link);
-	wl_list_insert(&clients, &sel->link);
+	if (!selmon->focus)
+		selmon->focus = c;
+	wl_list_remove(&selmon->focus->link);
+	wl_list_insert(&clients, &selmon->focus->link);
 
-	focusclient(sel, 1);
+	focusclient(selmon->focus, 1);
 	arrange(selmon);
 }
 
