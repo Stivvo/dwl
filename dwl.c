@@ -176,6 +176,7 @@ struct Monitor {
 	double mfact;
 	int nmaster;
 	Client *focus;
+	int nclients;
 };
 
 typedef struct {
@@ -1875,7 +1876,9 @@ setcursor(struct wl_listener *listener, void *data)
 void
 setfloating(Client *c, int floating)
 {
+	c->mon->nclients += (((floating + 1) % 2) - floating) * (floating != c->isfloating);
 	c->isfloating = floating;
+	/* if (c->isfloating != floating) nclients += floating ? -1 : 1; */
 	arrange(c->mon);
 }
 
@@ -1916,11 +1919,13 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 
 	/* TODO leave/enter is not optimal but works */
 	if (oldmon) {
+		oldmon->nclients -= 1 - c->isfloating;
 		wlr_surface_send_leave(client_surface(c), oldmon->wlr_output);
 		arrange(oldmon);
 	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
+		m->nclients += 1 - c->isfloating;
 		applybounds(c, &m->m);
 		wlr_surface_send_enter(client_surface(c), m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
@@ -2150,16 +2155,13 @@ tagmon(const Arg *arg)
 void
 tile(Monitor *m)
 {
-	unsigned int i, n = 0, h, mw, my, ty;
+	unsigned int i, h, mw, my, ty;
 	Client *c;
 
-	wl_list_for_each(c, &clients, link)
-		if (VISIBLEON(c, m) && !c->isfloating)
-			n++;
-	if (n == 0)
+	if (!m->nclients)
 		return;
 
-	if (n > m->nmaster)
+	if (m->nclients > m->nmaster)
 		mw = m->nmaster ? m->w.width * m->mfact : 0;
 	else
 		mw = m->w.width;
@@ -2168,11 +2170,11 @@ tile(Monitor *m)
 		if (!VISIBLEON(c, m) || c->isfloating || c->isfullscreen)
 			continue;
 		if (i < m->nmaster) {
-			h = (m->w.height - my) / (MIN(n, m->nmaster) - i);
+			h = (m->w.height - my) / (MIN(m->nclients, m->nmaster) - i);
 			resize(c, m->w.x, m->w.y + my, mw, h, 0);
 			my += c->geom.height;
 		} else {
-			h = (m->w.height - ty) / (n - i);
+			h = (m->w.height - ty) / (m->nclients - i);
 			resize(c, m->w.x + mw, m->w.y + ty, m->w.width - mw, h, 0);
 			ty += c->geom.height;
 		}
