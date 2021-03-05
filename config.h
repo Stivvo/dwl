@@ -90,7 +90,7 @@ int natural_scrolling = 0;
 
 /* commands */
 static const char *termcmd[]  = { "alacritty", NULL };
-static const char *browsercmd[] = { "librewolf", NULL };
+static const char *browsercmd[] = { "firefox", NULL };
 static const char *menucmd[] = { "fzfLauncherWrap.sh", NULL };
 static const char *krunner[] = { "krunner", NULL };
 static const char *guifmcmd[] = { "dolphin", "--new-window", NULL };
