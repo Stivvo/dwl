@@ -1674,7 +1674,7 @@ renderclients(Monitor *m, struct timespec *now)
 	struct render_data rdata;
 	struct wlr_box *borders;
 	struct wlr_surface *surface;
-	bool hide = m->focus && m->focus->isfullscreen;
+	bool hide = (m->focus && m->focus->isfullscreen) || m->lt[selmon->sellt]->arrange == monocle;
 	/* Each subsequent window we render is rendered on top of the last. Because
 	 * our stacking list is ordered front-to-back, we iterate over it backwards. */
 	wl_list_for_each_reverse(c, &stack, slink) {
