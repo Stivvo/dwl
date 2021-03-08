@@ -1052,7 +1052,8 @@ void
 togglefullscreen(const Arg *arg)
 {
 	Client *sel = selclient();
-	setfullscreen(sel, !sel->isfullscreen);
+	if (sel)
+		setfullscreen(sel, !sel->isfullscreen);
 }
 
 void
@@ -1663,7 +1664,7 @@ render(struct wlr_surface *surface, int sx, int sy, void *data)
 void
 renderclients(Monitor *m, struct timespec *now)
 {
-	Client *c;
+	Client *c, *sel = selclient();
 	const float *color;
 	double ox, oy;
 	int i, w, h;
@@ -1694,7 +1695,7 @@ renderclients(Monitor *m, struct timespec *now)
 			};
 
 			/* Draw window borders */
-			color = (c->surface.xdg->toplevel->current.activated) ? focuscolor : bordercolor;
+			color = (c == sel) ? focuscolor : bordercolor;
 			for (i = 0; i < 4; i++) {
 				scalebox(&borders[i], m->wlr_output->scale);
 				wlr_render_rect(drw, &borders[i], color,
