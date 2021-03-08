@@ -1272,7 +1272,7 @@ keypress(struct wl_listener *listener, void *data)
 	wlr_idle_notify_activity(idle, seat);
 
 	/* On _press_, attempt to process a compositor keybinding. */
-	if (event->state == WL_KEYBOARD_KEY_STATE_PRESSED)
+	if (event->state == WLR_KEY_PRESSED)
 		for (i = 0; i < nsyms; i++)
 			handled = keybinding(mods, syms[i]) || handled;
 
@@ -1975,7 +1975,7 @@ setup(void)
 	 * backend uses the renderer, for example, to fall back to software cursors
 	 * if the backend does not support hardware cursors (some older GPUs
 	 * don't). */
-	if (!(backend = wlr_backend_autocreate(dpy)))
+	if (!(backend = wlr_backend_autocreate(dpy, NULL)))
 		BARF("couldn't create backend");
 
 	/* If we don't provide a renderer, autocreate makes a GLES2 renderer for us.
@@ -2390,11 +2390,11 @@ zoom(const Arg *arg)
 void
 activatex11(struct wl_listener *listener, void *data)
 {
-       Client *c = wl_container_of(listener, c, activate);
+	Client *c = wl_container_of(listener, c, activate);
 
-       /* Only "managed" windows can be activated */
-       if (c->type == X11Managed)
-               wlr_xwayland_surface_activate(c->surface.xwayland, 1);
+	/* Only "managed" windows can be activated */
+	if (c->type == X11Managed)
+		wlr_xwayland_surface_activate(c->surface.xwayland, 1);
 }
 
 void
