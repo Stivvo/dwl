@@ -270,7 +270,6 @@ static void run(char *startup_cmd);
 static void scalebox(struct wlr_box *box, float scale);
 static Client *selclient(void);
 static void setcursor(struct wl_listener *listener, void *data);
-static void setkblayout(Keyboard *kb, const struct xkb_rule_names *newrule);
 static void setpsel(struct wl_listener *listener, void *data);
 static void setsel(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
@@ -785,24 +784,21 @@ commitnotify(struct wl_listener *listener, void *data)
 }
 
 void
-setkblayout(Keyboard *kb, const struct xkb_rule_names *newrule)
-{
-	/* Prepare an XKB keymap and assign it to the keyboard. */
-	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	struct xkb_keymap *keymap = xkb_map_new_from_names(context, newrule,
-			XKB_KEYMAP_COMPILE_NO_FLAGS);
-	wlr_keyboard_set_keymap(kb->device->keyboard, keymap);
-	xkb_keymap_unref(keymap);
-	xkb_context_unref(context);
-}
-
-void
 createkeyboard(struct wlr_input_device *device)
 {
+	struct xkb_context *context;
+	struct xkb_keymap *keymap;
 	Keyboard *kb = device->data = calloc(1, sizeof(*kb));
 	kb->device = device;
 
-	setkblayout(kb, &xkb_rules);
+	/* Prepare an XKB keymap and assign it to the keyboard. */
+	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+	keymap = xkb_map_new_from_names(context, &xkb_rules,
+		XKB_KEYMAP_COMPILE_NO_FLAGS);
+
+	wlr_keyboard_set_keymap(device->keyboard, keymap);
+	xkb_keymap_unref(keymap);
+	xkb_context_unref(context);
 	wlr_keyboard_set_repeat_info(device->keyboard, repeat_rate, repeat_delay);
 
 	/* Here we set up listeners for keyboard events. */
@@ -2234,8 +2230,14 @@ togglekblayout(const Arg *arg)
 
 	kblayout = (kblayout + 1) % LENGTH(kblayouts);
 	newrule.layout = kblayouts[kblayout];
-	wl_list_for_each(kb, &keyboards, link)
-		setkblayout(kb, &newrule);
+	wl_list_for_each(kb, &keyboards, link) {
+		struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+		struct xkb_keymap *keymap = xkb_map_new_from_names(context, &newrule,
+				XKB_KEYMAP_COMPILE_NO_FLAGS);
+		wlr_keyboard_set_keymap(kb->device->keyboard, keymap);
+		xkb_keymap_unref(keymap);
+		xkb_context_unref(context);
+	}
 }
 
 void
