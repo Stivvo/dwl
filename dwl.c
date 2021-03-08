@@ -288,6 +288,7 @@ static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
+static void togglekblayout(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
@@ -330,6 +331,7 @@ static struct wlr_xcursor_manager *xcursor_mgr;
 
 static struct wlr_seat *seat;
 static struct wl_list keyboards;
+static unsigned int kblayout = 0; /* index of kblayouts */
 static unsigned int cursor_mode;
 static Client *grabc;
 static int grabcx, grabcy; /* client-relative */
@@ -2229,6 +2231,24 @@ togglefloating(const Arg *arg)
 		return;
 	/* return if fullscreen */
 	setfloating(sel, !sel->isfloating /* || sel->isfixed */);
+}
+
+void
+togglekblayout(const Arg *arg)
+{
+	Keyboard *kb;
+	struct xkb_rule_names newrule = xkb_rules;
+
+	kblayout = (kblayout + 1) % LENGTH(kblayouts);
+	newrule.layout = kblayouts[kblayout];
+	wl_list_for_each(kb, &keyboards, link) {
+		struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+		struct xkb_keymap *keymap = xkb_map_new_from_names(context, &newrule,
+				XKB_KEYMAP_COMPILE_NO_FLAGS);
+		wlr_keyboard_set_keymap(kb->device->keyboard, keymap);
+		xkb_keymap_unref(keymap);
+		xkb_context_unref(context);
+	}
 }
 
 void
