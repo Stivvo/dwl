@@ -88,7 +88,7 @@ static const int natural_scrolling = 0;
 
 /* commands */
 static const char *termcmd[] = { "alacritty", NULL };
-static const char *menucmd[] = { "bemenu-run", NULL };
+static const char *menucmd[] = { "bemenu-run", "bemenu-run", "--monitor=all", "--tf=#E95420", "--hf=#E95420", "--fn", "proggyvector", "16", NULL };
 static const char *browsercmd[] = { "firefox", NULL };
 static const char *guifmcmd[] = { "dolphin", "--new-window", NULL };
 static const char *calcmd[] = { "gnome-calculator", NULL };
