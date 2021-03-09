@@ -163,6 +163,7 @@ static const Key keys[] = {
 	{ 0, XKB_KEY_XF86MonBrightnessUp,       		 spawn, 		 {.v = brightUcmd} },
 	{ 0, XKB_KEY_XF86MonBrightnessDown,       		 spawn, 		 {.v = brightDcmd} },
 	{ MODKEY, 					 XKB_KEY_Print,      spawn, 		 {.v = colorPickerCmd} },
+	{ 0, 						 XKB_KEY_Print,      shotFocusMon, 	 {0} },
 	{ WLR_MODIFIER_SHIFT, 		 XKB_KEY_Print,      spawn, 		 {.v = shotAreaCmd} },
 	{ WLR_MODIFIER_CTRL, 		 XKB_KEY_Print,      spawn, 		 {.v = shotAllCmd} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_O,     	 spawn, 		 {.v = oneMonitorCmd} },

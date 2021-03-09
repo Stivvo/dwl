@@ -282,6 +282,7 @@ static void setsel(struct wl_listener *listener, void *data);
 static void setfloating(Client *c, int floating);
 static void setfullscreen(Client *c, int fullscreen);
 static void setgaps(int oh, int ov, int ih, int iv);
+static void shotFocusMon(const Arg *arg);
 static void incrgaps(const Arg *arg);
 static void incrigaps(const Arg *arg);
 static void incrogaps(const Arg *arg);
@@ -2270,6 +2271,13 @@ sigchld(int unused)
 		EBARF("can't install SIGCHLD handler");
 	while (0 < waitpid(-1, NULL, WNOHANG))
 		;
+}
+
+void
+shotFocusMon(const Arg *arg) {
+	const char *shotFocusedCmd[] = { "shot.sh", "focused", selmon->wlr_output->name, NULL };
+	Arg argo = {.v = shotFocusedCmd};
+	spawn(&argo);
 }
 
 void
