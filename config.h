@@ -89,6 +89,23 @@ static const int natural_scrolling = 0;
 /* commands */
 static const char *termcmd[] = { "alacritty", NULL };
 static const char *menucmd[] = { "bemenu-run", NULL };
+static const char *browsercmd[] = { "firefox", NULL };
+static const char *guifmcmd[] = { "dolphin", "--new-window", NULL };
+static const char *calcmd[] = { "gnome-calculator", NULL };
+static const char *vUpcmd[] = { "volume.sh", "up", "5", NULL };
+static const char *vDowncmd[] = { "volume.sh", "down", "5", NULL };
+static const char *vMutecmd[] = { "volume.sh", "audiomute", NULL };
+static const char *micMutecmd[] = { "volume.sh", "micmute", NULL };
+static const char *brightUcmd[] = { "light.sh", "u", NULL };
+static const char *brightDcmd[] = { "light.sh", "d", NULL };
+static const char *colorPickerCmd[] = { "colorPicker.sh", NULL };
+static const char *shotAreaCmd[] = { "shot.sh", "area", NULL };
+static const char *shotAllCmd[] = { "shot.sh", "all", NULL };
+static const char *oneMonitorCmd[] = { "monitor.sh", "1", NULL };
+static const char *tvOnlyCmd[] = { "monitor.sh", "2", NULL };
+static const char *allMonitorsCmd[] = { "monitor.sh", "3", NULL };
+static const char *rotateCmd[] = { "rotate.sh", NULL };
+static const char *suspendCmd[] = { "suspendMon.sh", NULL };
 
 #include "shiftview.c"
 
@@ -103,14 +120,14 @@ static const Key keys[] = {
 	{ MODKEY,                    XKB_KEY_d,          incnmaster,     {.i = -1} },
 	{ MODKEY,                    XKB_KEY_h,          setmfact,       {.f = -0.05} },
 	{ MODKEY,                    XKB_KEY_l,          setmfact,       {.f = +0.05} },
-	{ MODKEY, 					 XKB_KEY_y,          incrgaps,       {.i = +1 } },
-	{ MODKEY, 					 XKB_KEY_o,          incrgaps,       {.i = -1 } },
-	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_y,      	 incrogaps,      {.i = +1 } },
-	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_o,      	 incrogaps,      {.j = -1 } },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Y,      	 incrigaps,      {.i = +1 } },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_O,      	 incrigaps,      {.i = -1 } },
+	{ MODKEY, 					 XKB_KEY_z,          incrgaps,       {.i = +1 } },
+	{ MODKEY, 					 XKB_KEY_x,          incrgaps,       {.i = -1 } },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_z,      	 incrogaps,      {.i = +1 } },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_x,      	 incrogaps,      {.i = -1 } },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_Z,      	 incrigaps,      {.i = +1 } },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_X,      	 incrigaps,      {.i = -1 } },
 	{ MODKEY,  				 	 XKB_KEY_g,          togglegaps,     {0} },
-	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_parenright, defaultgaps,    {0} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_G, 		 defaultgaps,    {0} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_H,          incrihgaps,     {.i = +1 } },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_L,          incrihgaps,     {.i = -1 } },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_K,          incrivgaps,     {.i = +1 } },
@@ -121,8 +138,8 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_j,          incrovgaps,     {.i = -1 } },
 	{ MODKEY,                    XKB_KEY_Return,     zoom,           {0} },
 	{ MODKEY,                    XKB_KEY_Tab,        view,           {0} },
-	{ MODKEY,                    XKB_KEY_a,          shiftview,      { .i = -1 } },
-	{ MODKEY,                    XKB_KEY_semicolon,  shiftview,      { .i = 1 } },
+	{ WLR_MODIFIER_ALT,          XKB_KEY_j,          shiftview,      { .i = -1 } },
+	{ WLR_MODIFIER_ALT,          XKB_KEY_k,  		 shiftview,      { .i = 1 } },
 	{ MODKEY, 					 XKB_KEY_q,          killclient,     {0} },
 	{ MODKEY,                    XKB_KEY_t,          setlayout,      {.v = &layouts[0]} },
 	{ MODKEY,                    XKB_KEY_f,          setlayout,      {.v = &layouts[1]} },
@@ -137,6 +154,22 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_less,       tagmon,         {.i = WLR_DIRECTION_LEFT} },
 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_greater,    tagmon,         {.i = WLR_DIRECTION_RIGHT} },
 	{ MODKEY,  					 XKB_KEY_space,    	 togglekblayout, {0} },
+	{ 0, XKB_KEY_XF86Calculator,      				 spawn, 		 {.v = calcmd} },
+	{ 0, XKB_KEY_XF86Explorer,        				 spawn, 		 {.v = guifmcmd} },
+	{ 0, XKB_KEY_XF86AudioRaiseVolume, 				 spawn, 		 {.v = vUpcmd} },
+	{ 0, XKB_KEY_XF86AudioLowerVolume, 				 spawn, 		 {.v = vDowncmd} },
+	{ 0, XKB_KEY_XF86AudioMute,       				 spawn, 		 {.v = vMutecmd} },
+	{ 0, XKB_KEY_XF86AudioMicMute,       			 spawn, 		 {.v = micMutecmd} },
+	{ 0, XKB_KEY_XF86MonBrightnessUp,       		 spawn, 		 {.v = brightUcmd} },
+	{ 0, XKB_KEY_XF86MonBrightnessDown,       		 spawn, 		 {.v = brightDcmd} },
+	{ MODKEY, 					 XKB_KEY_Print,      spawn, 		 {.v = colorPickerCmd} },
+	{ WLR_MODIFIER_SHIFT, 		 XKB_KEY_Print,      spawn, 		 {.v = shotAreaCmd} },
+	{ WLR_MODIFIER_CTRL, 		 XKB_KEY_Print,      spawn, 		 {.v = shotAllCmd} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_O,     	 spawn, 		 {.v = oneMonitorCmd} },
+	{ MODKEY|WLR_MODIFIER_SHIFT|WLR_MODIFIER_CTRL, XKB_KEY_O, spawn, {.v = tvOnlyCmd} },
+	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_o,     	 spawn, 		 {.v = allMonitorsCmd} },
+	{ MODKEY, 					 XKB_KEY_r,     	 spawn, 		 {.v = rotateCmd} },
+	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_S,     	 spawn, 		 {.v = suspendCmd} },
 	TAGKEYS(          XKB_KEY_1, XKB_KEY_exclam,                     0),
 	TAGKEYS(          XKB_KEY_2, XKB_KEY_quotedbl,                   1),
 	TAGKEYS(          XKB_KEY_3, XKB_KEY_sterling,                   2),
