@@ -26,6 +26,7 @@
 #include <wlr/types/wlr_keyboard.h>
 #include <wlr/types/wlr_matrix.h>
 #include <wlr/types/wlr_output.h>
+#include <wlr/types/wlr_output_damage.h>
 #include <wlr/types/wlr_output_layout.h>
 #include <wlr/types/wlr_output_management_v1.h>
 #include <wlr/types/wlr_pointer.h>
@@ -92,6 +93,7 @@ typedef struct {
 		struct wlr_xwayland_surface *xwayland;
 	} surface;
 	struct wl_listener commit;
+	struct wl_listener new_sub;
 	struct wl_listener map;
 	struct wl_listener unmap;
 	struct wl_listener destroy;
@@ -113,6 +115,15 @@ typedef struct {
 	int prevheight;
 	int isfullscreen;
 } Client;
+
+typedef struct {
+	struct wl_listener commit;
+	struct wl_listener map;
+	struct wl_listener unmap;
+	struct wl_listener destroy;
+	struct wlr_subsurface *subsurface;
+	Monitor *mon;
+} Subsurface;
 
 typedef struct {
 	struct wl_listener request_mode;
@@ -146,6 +157,7 @@ typedef struct {
 
 	struct wlr_box geo;
 	enum zwlr_layer_shell_v1_layer layer;
+	Monitor *mon;
 } LayerSurface;
 
 typedef struct {
@@ -180,6 +192,7 @@ struct Monitor {
 	double mfact;
 	int nmaster;
 	Client *focus;
+	struct wlr_output_damage *damage;
 };
 
 typedef struct {
@@ -232,6 +245,7 @@ static void cleanupmon(struct wl_listener *listener, void *data);
 static void closemon(Monitor *m);
 static void commitlayersurfacenotify(struct wl_listener *listener, void *data);
 static void commitnotify(struct wl_listener *listener, void *data);
+static void commitnotify_sub(struct wl_listener *listener, void *data);
 static void createkeyboard(struct wlr_input_device *device);
 static void createmon(struct wl_listener *listener, void *data);
 static void createnotify(struct wl_listener *listener, void *data);
@@ -241,6 +255,7 @@ static void createxdeco(struct wl_listener *listener, void *data);
 static void cursorframe(struct wl_listener *listener, void *data);
 static void destroylayersurfacenotify(struct wl_listener *listener, void *data);
 static void destroynotify(struct wl_listener *listener, void *data);
+static void destroynotify_sub(struct wl_listener *listener, void *data);
 static void destroyxdeco(struct wl_listener *listener, void *data);
 static Monitor *dirtomon(enum wlr_direction dir);
 static void focusclient(Client *c, int lift);
@@ -257,11 +272,13 @@ static void keypressmod(struct wl_listener *listener, void *data);
 static void killclient(const Arg *arg);
 static void maplayersurfacenotify(struct wl_listener *listener, void *data);
 static void mapnotify(struct wl_listener *listener, void *data);
+static void mapnotify_sub(struct wl_listener *listener, void *data);
 static void monocle(Monitor *m);
 static void motionabsolute(struct wl_listener *listener, void *data);
 static void motionnotify(uint32_t time);
 static void motionrelative(struct wl_listener *listener, void *data);
 static void moveresize(const Arg *arg);
+static void new_subnotify(struct wl_listener *listener, void *data);
 static void outputmgrapply(struct wl_listener *listener, void *data);
 static void outputmgrapplyortest(struct wlr_output_configuration_v1 *config, int test);
 static void outputmgrtest(struct wl_listener *listener, void *data);
@@ -309,6 +326,7 @@ static void toggleview(const Arg *arg);
 static void unmaplayersurface(LayerSurface *layersurface);
 static void unmaplayersurfacenotify(struct wl_listener *listener, void *data);
 static void unmapnotify(struct wl_listener *listener, void *data);
+static void unmapnotify_sub(struct wl_listener *listener, void *data);
 static void updatemons(struct wl_listener *listener, void *data);
 static void view(const Arg *arg);
 static void virtualkeyboard(struct wl_listener *listener, void *data);
@@ -801,6 +819,9 @@ commitlayersurfacenotify(struct wl_listener *listener, void *data)
 			&layersurface->link);
 		layersurface->layer = wlr_layer_surface->current.layer;
 	}
+
+	// Damage the whole screen
+	wlr_output_damage_add_whole(m->damage);
 }
 
 void
@@ -811,6 +832,17 @@ commitnotify(struct wl_listener *listener, void *data)
 	/* mark a pending resize as completed */
 	if (c->resize && c->resize <= c->surface.xdg->configure_serial)
 		c->resize = 0;
+
+	// Damage the whole screen
+	if (c->mon)
+		wlr_output_damage_add_whole(c->mon->damage);
+}
+
+void
+commitnotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, commit);
+	wlr_output_damage_add_whole(s->mon->damage);
 }
 
 void
@@ -860,6 +892,7 @@ createmon(struct wl_listener *listener, void *data)
 	m->gappiv = gappiv;
 	m->gappoh = gappoh;
 	m->gappov = gappov;
+	m->damage = wlr_output_damage_create(wlr_output);
 	m->tagset[0] = m->tagset[1] = 1;
 	for (r = monrules; r < END(monrules); r++) {
 		if (!r->name || strstr(wlr_output->name, r->name)) {
@@ -932,6 +965,7 @@ createnotify(struct wl_listener *listener, void *data)
 			WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
 
 	LISTEN(&xdg_surface->surface->events.commit, &c->commit, commitnotify);
+	LISTEN(&xdg_surface->surface->events.new_subsurface, &c->new_sub, new_subnotify);
 	LISTEN(&xdg_surface->events.map, &c->map, mapnotify);
 	LISTEN(&xdg_surface->events.unmap, &c->unmap, unmapnotify);
 	LISTEN(&xdg_surface->events.destroy, &c->destroy, destroynotify);
@@ -1047,6 +1081,11 @@ destroynotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is destroyed and should never be shown again. */
 	Client *c = wl_container_of(listener, c, destroy);
+
+	// Damage the whole screen
+	if (c->mon)
+		wlr_output_damage_add_whole(c->mon->damage);
+
 	wl_list_remove(&c->map.link);
 	wl_list_remove(&c->unmap.link);
 	wl_list_remove(&c->destroy.link);
@@ -1058,6 +1097,18 @@ destroynotify(struct wl_listener *listener, void *data)
 #endif
 		wl_list_remove(&c->commit.link);
 	free(c);
+}
+
+void
+destroynotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, destroy);
+	wlr_output_damage_add_whole(s->mon->damage);
+	wl_list_remove(&s->commit.link);
+	wl_list_remove(&s->map.link);
+	wl_list_remove(&s->unmap.link);
+	wl_list_remove(&s->destroy.link);
+	free(s);
 }
 
 void
@@ -1361,6 +1412,14 @@ maplayersurfacenotify(struct wl_listener *listener, void *data)
 }
 
 void
+mapnotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, map);
+	wlr_output_damage_add_whole(s->mon->damage);
+}
+
+
+void
 mapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is mapped, or ready to display on-screen. */
@@ -1383,6 +1442,9 @@ mapnotify(struct wl_listener *listener, void *data)
 
 	/* Set initial monitor, tags, floating status, and focus */
 	applyrules(c);
+
+	// Damage the whole screen
+	wlr_output_damage_add_whole(c->mon->damage);
 }
 
 void
@@ -1520,6 +1582,20 @@ moveresize(const Arg *arg)
 		break;
 	}
 }
+
+void
+new_subnotify(struct wl_listener *listener, void *data) {
+	Subsurface *s = calloc(1, sizeof(Subsurface));
+	Client *c = wl_container_of(listener, c, new_sub);
+	s->subsurface = data;
+	s->mon = c->mon;
+
+	LISTEN(&s->subsurface->surface->events.commit, &s->commit, commitnotify_sub);
+	LISTEN(&s->subsurface->events.map, &s->map, mapnotify_sub);
+	LISTEN(&s->subsurface->events.unmap, &s->unmap, unmapnotify_sub);
+	LISTEN(&s->subsurface->events.destroy, &s->destroy, destroynotify_sub);
+}
+
 
 void
 outputmgrapply(struct wl_listener *listener, void *data)
@@ -1760,7 +1836,9 @@ void
 rendermon(struct wl_listener *listener, void *data)
 {
 	Client *c;
-	int render = 1;
+	int render;
+	bool needs_frame;
+	pixman_region32_t damage;
 
 	/* This function is called every time an output is ready to display a frame,
 	 * generally at the output's refresh rate (e.g. 60Hz). */
@@ -1769,46 +1847,52 @@ rendermon(struct wl_listener *listener, void *data)
 	struct timespec now;
 	clock_gettime(CLOCK_MONOTONIC, &now);
 
-	/* Do not render if any XDG clients have an outstanding resize. */
+	/* If there is any XDG client which is awaiting resize, request a new
+	 * frame from that client, and do not render anything new until there
+	 * are no pending resizes remaining. */
 	wl_list_for_each(c, &stack, slink) {
 		if (c->resize) {
 			wlr_surface_send_frame_done(client_surface(c), &now);
-			render = 0;
+			return;
 		}
 	}
 
-	/* wlr_output_attach_render makes the OpenGL context current. */
-	if (!wlr_output_attach_render(m->wlr_output, NULL))
+	/* Do not render if no new frame is needed */
+	pixman_region32_init(&damage);
+	render = wlr_output_damage_attach_render(m->damage, &needs_frame, &damage);
+	pixman_region32_fini(&damage);
+	if (!render || !needs_frame) {
+		/* Rollback is needed because attach_render is double-buffered */
+		wlr_output_rollback(m->wlr_output);
 		return;
-
-	if (render) {
-		/* Begin the renderer (calls glViewport and some other GL sanity checks) */
-		wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
-		wlr_renderer_clear(drw, rootcolor);
-
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
-		if (!(m->focus && VISIBLEON(m->focus, m) && m->focus->isfullscreen)) /* render waybar and similar */
-			renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
-		renderclients(m, &now);
-#ifdef XWAYLAND
-		renderindependents(m->wlr_output, &now);
-#endif
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP], &now);
-		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY], &now);
-
-		/* Hardware cursors are rendered by the GPU on a separate plane, and can be
-		 * moved around without re-rendering what's beneath them - which is more
-		 * efficient. However, not all hardware supports hardware cursors. For this
-		 * reason, wlroots provides a software fallback, which we ask it to render
-		 * here. wlr_cursor handles configuring hardware vs software cursors for you,
-		 * and this function is a no-op when hardware cursors are in use. */
-		wlr_output_render_software_cursors(m->wlr_output, NULL);
-
-		/* Conclude rendering and swap the buffers, showing the final frame
-		 * on-screen. */
-		wlr_renderer_end(drw);
 	}
 
+	/* Begin the renderer (calls glViewport and some other GL sanity checks) */
+	wlr_renderer_begin(drw, m->wlr_output->width, m->wlr_output->height);
+	wlr_renderer_clear(drw, rootcolor);
+
+	renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BACKGROUND], &now);
+	if (!(m->focus && VISIBLEON(m->focus, m) && m->focus->isfullscreen)) /* render waybar and similar */
+		renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_BOTTOM], &now);
+	renderclients(m, &now);
+#ifdef XWAYLAND
+	renderindependents(m->wlr_output, &now);
+#endif
+	renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_TOP], &now);
+	renderlayer(&m->layers[ZWLR_LAYER_SHELL_V1_LAYER_OVERLAY], &now);
+
+	/* Hardware cursors are rendered by the GPU on a separate plane, and can be
+	 * moved around without re-rendering what's beneath them - which is more
+	 * efficient. However, not all hardware supports hardware cursors. For this
+	 * reason, wlroots provides a software fallback, which we ask it to render
+	 * here. wlr_cursor handles configuring hardware vs software cursors for you,
+	 * and this function is a no-op when hardware cursors are in use. */
+	wlr_output_render_software_cursors(m->wlr_output, NULL);
+
+	/* Conclude rendering and swap the buffers, showing the final frame
+	 * on-screen. */
+	wlr_renderer_end(drw);
+	wlr_output_set_damage(m->wlr_output, &m->damage->current);
 	wlr_output_commit(m->wlr_output);
 }
 
@@ -2077,6 +2161,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	if (oldmon) {
 		wlr_surface_send_leave(client_surface(c), oldmon->wlr_output);
 		arrange(oldmon);
+		wlr_output_damage_add_whole(oldmon->damage);
 	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
@@ -2084,6 +2169,7 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		wlr_surface_send_enter(client_surface(c), m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
+		wlr_output_damage_add_whole(m->damage);
 	}
 	focusclient(focustop(selmon), 1);
 }
@@ -2272,6 +2358,11 @@ setup(void)
 void
 sigchld(int unused)
 {
+	/* We should be able to remove this function in favor of a simple
+	 *     signal(SIGCHLD, SIG_IGN);
+	 * but the Xwayland implementation in wlroots currently prevents us from
+	 * setting our own disposition for SIGCHLD.
+	 */
 	if (signal(SIGCHLD, sigchld) == SIG_ERR)
 		EBARF("can't install SIGCHLD handler");
 	while (0 < waitpid(-1, NULL, WNOHANG))
@@ -2433,6 +2524,11 @@ unmapnotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the surface is unmapped, and should no longer be shown. */
 	Client *c = wl_container_of(listener, c, unmap);
+
+	// Damage the whole screen
+	if (c->mon)
+		wlr_output_damage_add_whole(c->mon->damage);
+
 	wl_list_remove(&c->link);
 	if (client_is_unmanaged(c))
 		return;
@@ -2441,6 +2537,14 @@ unmapnotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->flink);
 	wl_list_remove(&c->slink);
 }
+
+void
+unmapnotify_sub(struct wl_listener *listener, void *data)
+{
+	Subsurface *s = wl_container_of(listener, s, unmap);
+	wlr_output_damage_add_whole(s->mon->damage);
+}
+
 
 void
 updatemons(struct wl_listener *listener, void *data)
