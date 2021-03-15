@@ -122,7 +122,7 @@ typedef struct {
 	struct wl_listener unmap;
 	struct wl_listener destroy;
 	struct wlr_subsurface *subsurface;
-	Monitor *mon;
+	Client *c;
 } Subsurface;
 
 typedef struct {
@@ -843,7 +843,7 @@ void
 commitnotify_sub(struct wl_listener *listener, void *data)
 {
 	Subsurface *s = wl_container_of(listener, s, commit);
-	wlr_output_damage_add_whole(s->mon->damage);
+	wlr_output_damage_add_whole(s->c->mon->damage);
 }
 
 void
@@ -1104,7 +1104,7 @@ void
 destroynotify_sub(struct wl_listener *listener, void *data)
 {
 	Subsurface *s = wl_container_of(listener, s, destroy);
-	wlr_output_damage_add_whole(s->mon->damage);
+	wlr_output_damage_add_whole(s->c->mon->damage);
 	wl_list_remove(&s->commit.link);
 	wl_list_remove(&s->map.link);
 	wl_list_remove(&s->unmap.link);
@@ -1416,7 +1416,7 @@ void
 mapnotify_sub(struct wl_listener *listener, void *data)
 {
 	Subsurface *s = wl_container_of(listener, s, map);
-	wlr_output_damage_add_whole(s->mon->damage);
+	wlr_output_damage_add_whole(s->c->mon->damage);
 }
 
 
@@ -1587,9 +1587,8 @@ moveresize(const Arg *arg)
 void
 new_subnotify(struct wl_listener *listener, void *data) {
 	Subsurface *s = calloc(1, sizeof(Subsurface));
-	Client *c = wl_container_of(listener, c, new_sub);
+	s->c = wl_container_of(listener, s->c, new_sub);
 	s->subsurface = data;
-	s->mon = c->mon;
 
 	LISTEN(&s->subsurface->surface->events.commit, &s->commit, commitnotify_sub);
 	LISTEN(&s->subsurface->events.map, &s->map, mapnotify_sub);
@@ -2541,7 +2540,7 @@ void
 unmapnotify_sub(struct wl_listener *listener, void *data)
 {
 	Subsurface *s = wl_container_of(listener, s, unmap);
-	wlr_output_damage_add_whole(s->mon->damage);
+	wlr_output_damage_add_whole(s->c->mon->damage);
 }
 
 
