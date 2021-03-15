@@ -537,6 +537,7 @@ arrange(Monitor *m)
 		}
 	}
 	/* TODO recheck pointer focus here... or in resize()? */
+	wlr_output_damage_add_whole(m->damage);
 }
 
 void
@@ -2161,7 +2162,6 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 	if (oldmon) {
 		wlr_surface_send_leave(client_surface(c), oldmon->wlr_output);
 		arrange(oldmon);
-		wlr_output_damage_add_whole(oldmon->damage);
 	}
 	if (m) {
 		/* Make sure window actually overlaps with the monitor */
@@ -2169,7 +2169,6 @@ setmon(Client *c, Monitor *m, unsigned int newtags)
 		wlr_surface_send_enter(client_surface(c), m->wlr_output);
 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
 		arrange(m);
-		wlr_output_damage_add_whole(m->damage);
 	}
 	focusclient(focustop(selmon), 1);
 }
